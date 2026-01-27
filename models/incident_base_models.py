@@ -1,4 +1,4 @@
-from . import db
+from extensions import db
 
 class IncidentType(db.Model):
     __tablename__ = 'incident_types'
@@ -25,6 +25,7 @@ class IncidentType(db.Model):
     def to_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         data["class_name"] = self.classification.class_name
+        data["missions"] = [mission.to_dict() for mission in self.missions]
         return data
 
 
@@ -99,5 +100,5 @@ class IncidentTypeMission(db.Model):
     def to_dict(self):
         data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
         data["mission_name"] = self.mission.mission_name
-        data["incident_type_name"] = self.incident_type.incident_type_name
+        data["mission_class_name"] = self.mission.classification.class_name
         return data

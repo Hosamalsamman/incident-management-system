@@ -2,7 +2,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError, DataError
 
 from models.incident_base_models import IncidentType, Classification, Mission, IncidentTypeMission
 from flask import Blueprint, jsonify, request
-from models import db
+from extensions import db
 from routes.common import commit_trial
 
 incident_base_bp = Blueprint("incident_base", __name__)
@@ -129,7 +129,7 @@ def add_new_incident_type_mission():
                 IncidentTypeMission(
                     incident_type_id=data["incident_type"],
                     mission_id=m["mission_id"],
-                    mission_order=m["order"]
+                    mission_order=m["mission_order"]
                 )
                 for m in data["missions"]
             ])
