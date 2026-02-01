@@ -13,6 +13,7 @@ class IncidentType(db.Model):
     )
 
     classification = db.relationship('Classification', back_populates='incident_types')
+    incidents = db.relationship("CurrentIncident", back_populates="incident_type")
 
     missions = db.relationship(
         'IncidentTypeMission',

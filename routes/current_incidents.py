@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from extensions import socketio, db
-from models.current_incident_models import CurrentIncident, IncidentSeverity
-from models.incident_base_models import IncidentType
+from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission
+from models.incident_base_models import IncidentType, IncidentTypeMission
 from datetime import datetime
 from routes.common import commit_trial
 
@@ -41,10 +41,22 @@ def add_current_incident():
             current_incident_notes=data["current_incident_notes"]
         )
         db.session.add(new_current_incident)
+        # Fetch predefined missions for this incident type
+        predefined_missions = IncidentTypeMission.query.filter_by(
+            incident_type_id=new_current_incident.current_incident_type_id
+        ).all()
+
+        for m in predefined_missions:
+            db.session.add(CurrentIncidentMission(
+                current_incident_id=new_current_incident.current_incident_id,
+                current_incident_mission_id=m.mission_id,  # from IncidentTypeMission table
+                current_incident_mission_order=m.mission_order,  # from IncidentTypeMission table
+                current_incident_mission_status=1,  # reported
+            ))
 
         def after_commit():
             print("New incident added:", new_current_incident.to_dict())
-            socketio.emit("incident_update", new_current_incident.to_dict())
+            socketio.emit("incident_created", new_current_incident.to_dict())
 
         return commit_trial("تم إضافة الأزمة بنجاح", on_success=after_commit)
 
@@ -59,9 +71,6 @@ def edit_current_incident(current_incident_id):
         current_incident.current_incident_description = data["current_incident_description"]
 
         def emit_update():
-            socketio.emit(
-                "incident_update",
-                current_incident.to_dict()  # 🔥 real-time update
-            )
+            socketio.emit("incident_updated", current_incident.to_dict())
         return commit_trial("تم تعديل البيانات بنجاح", on_success=emit_update)
     return jsonify({"response": "اللهم صل على سيدنا محمد"})

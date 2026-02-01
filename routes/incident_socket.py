@@ -20,7 +20,7 @@ def handle_connect(auth):
     incidents = get_current_incidents()
     incidents_list = [i.to_dict() for i in incidents]
     print(incidents_list)
-    emit("incident_update", incidents_list)
+    emit("incident_snapshot", incidents_list)
 
 
 @socketio.on("join_incident")
