@@ -2,6 +2,28 @@ from decimal import Decimal
 
 from extensions import db
 
+class Branch(db.Model):
+    __tablename__ = 'branches'
+
+    branch_id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    branch_name = db.Column(
+        db.String(50),
+        nullable=False,
+        unique=True
+    )
+
+    incidents = db.relationship('CurrentIncident', back_populates='branch')
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    def __repr__(self):
+        return f"<Branch id={self.branch_id} name={self.branch_name}>"
+
 
 class CurrentIncident(db.Model):
     __tablename__ = 'current_incidents'
@@ -79,6 +101,12 @@ class CurrentIncident(db.Model):
         nullable=True
     )
 
+    branch_id = db.Column(
+        db.Integer,
+        db.ForeignKey('branches.branch_id'),
+        nullable=False
+    )
+
     # Relationships
     missions = db.relationship("CurrentIncidentMission", back_populates="incident", lazy="joined")
     created_by_user = db.relationship("User", foreign_keys=[current_incident_created_by])
@@ -87,6 +115,8 @@ class CurrentIncident(db.Model):
     incident_type = db.relationship("IncidentType", back_populates="incidents")
     severity = db.relationship("IncidentSeverity", back_populates="incidents")
     status = db.relationship("Status", back_populates="incidents")
+    branch = db.relationship('Branch', back_populates='incidents')
+    status_severity_history = db.relationship("CurrentIncidentStatusSeverityHistory", back_populates="current_incident")
 
     def to_dict(self):
         result = {}
@@ -104,7 +134,7 @@ class CurrentIncident(db.Model):
             # Everything else is fine
             else:
                 result[c.name] = val
-
+        result["branch_name"] = self.branch.branch_name
         result['missions'] = [m.to_dict() for m in self.missions]
 
         return result
@@ -214,7 +244,9 @@ class CurrentIncidentMission(db.Model):
     status = db.relationship("Status", foreign_keys=[current_incident_mission_status])
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data["mission_name"] = self.mission.mission_name
+        return data
 
     def __repr__(self):
         return (
@@ -222,3 +254,76 @@ class CurrentIncidentMission(db.Model):
             f"mission_id={self.current_incident_mission_id} "
             f"order={self.current_incident_mission_order}>"
         )
+
+
+class CurrentIncidentStatusSeverityHistory(db.Model):
+    __tablename__ = "current_incident_status_severity_history"
+
+    current_incident_id = db.Column(
+        db.Integer,
+        db.ForeignKey("current_incidents.current_incident_id"),
+        primary_key=True
+    )
+
+    current_incident_status = db.Column(
+        db.Integer,
+        db.ForeignKey("statuses.status_id"),
+        nullable=False
+    )
+
+    current_incident_status_changed_by = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    current_incident_status_changed_at = db.Column(
+        db.DateTime,
+        nullable=False
+    )
+
+    current_incident_severity = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_severities.severity_id"),
+        nullable=False
+    )
+
+    current_incident_severity_changed_by = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    current_incident_severity_changed_at = db.Column(
+        db.DateTime,
+        nullable=False
+    )
+
+    # relationships
+    current_incident = db.relationship(
+        "CurrentIncident",
+        back_populates="status_severity_history"
+    )
+
+    status = db.relationship("Status")
+    severity = db.relationship("IncidentSeverity")
+
+    status_changed_by = db.relationship(
+        "User",
+        foreign_keys=[current_incident_status_changed_by]
+    )
+
+    severity_changed_by = db.relationship(
+        "User",
+        foreign_keys=[current_incident_severity_changed_by]
+    )
+
+    def __repr__(self):
+        return (
+            f"<IncidentHistory incident={self.current_incident_id} "
+            f"status={self.current_incident_status} "
+            f"severity={self.current_incident_severity}>"
+        )
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
