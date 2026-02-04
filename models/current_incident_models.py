@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from extensions import db
@@ -122,19 +123,15 @@ class CurrentIncident(db.Model):
         result = {}
         for c in self.__table__.columns:
             val = getattr(self, c.name)
-
-            # Convert datetime to ISO string
-            if isinstance(val, (db.DateTime().python_type,)):
-                result[c.name] = val.isoformat()
-
-            # Convert Decimal to float
+            if isinstance(val, datetime):
+                result[c.name] = val.isoformat()  # ✅ Convert to ISO string
             elif isinstance(val, Decimal):
                 result[c.name] = float(val)
-
-            # Everything else is fine
             else:
                 result[c.name] = val
         result["branch_name"] = self.branch.branch_name
+        result["user_name"] = self.created_by_user.username
+        result["incident_type_name"] = self.incident_type.incident_type_name
         result['missions'] = [m.to_dict() for m in self.missions]
 
         return result
@@ -242,11 +239,24 @@ class CurrentIncidentMission(db.Model):
     mission = db.relationship("Mission")
     status_updated_by_user = db.relationship("User", foreign_keys=[current_incident_mission_status_updated_by])
     status = db.relationship("Status", foreign_keys=[current_incident_mission_status])
+    status_history = db.relationship(
+        "CurrentIncidentMissionStatusHistory",
+        back_populates="current_incident_mission",
+        order_by="CurrentIncidentMissionStatusHistory.current_incident_mission_status_updated_at"
+    )
 
     def to_dict(self):
-        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
-        data["mission_name"] = self.mission.mission_name
-        return data
+        result = {}
+        for c in self.__table__.columns:
+            val = getattr(self, c.name)
+            if isinstance(val, datetime):
+                result[c.name] = val.isoformat()  # ✅ Convert to ISO string
+            elif isinstance(val, Decimal):
+                result[c.name] = float(val)
+            else:
+                result[c.name] = val
+        result["mission_name"] = self.mission.mission_name
+        return result
 
     def __repr__(self):
         return (
@@ -323,6 +333,55 @@ class CurrentIncidentStatusSeverityHistory(db.Model):
             f"<IncidentHistory incident={self.current_incident_id} "
             f"status={self.current_incident_status} "
             f"severity={self.current_incident_severity}>"
+        )
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class CurrentIncidentMissionStatusHistory(db.Model):
+    __tablename__ = "current_incident_mission_status_history"
+
+    current_incident_mission_id = db.Column(
+        db.Integer,
+        db.ForeignKey("current_incident_missions.id"),
+        primary_key=True
+    )
+
+    current_incident_mission_status = db.Column(
+        db.Integer,
+        db.ForeignKey("statuses.status_id"),
+        nullable=False
+    )
+
+    current_incident_mission_status_updated_by = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    current_incident_mission_status_updated_at = db.Column(
+        db.DateTime,
+        nullable=False
+    )
+
+    # relationships
+    current_incident_mission = db.relationship(
+        "CurrentIncidentMission",
+        back_populates="status_history"
+    )
+
+    status = db.relationship("Status")
+
+    updated_by = db.relationship(
+        "User",
+        foreign_keys=[current_incident_mission_status_updated_by]
+    )
+
+    def __repr__(self):
+        return (
+            f"<MissionStatusHistory mission={self.current_incident_mission_id} "
+            f"status={self.current_incident_mission_status}>"
         )
 
     def to_dict(self):

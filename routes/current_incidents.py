@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from extensions import socketio, db
-from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission, Branch, CurrentIncidentStatusSeverityHistory
+from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission, Branch, \
+    CurrentIncidentStatusSeverityHistory, CurrentIncidentMissionStatusHistory
 from models.incident_base_models import IncidentType, IncidentTypeMission
 from datetime import datetime
 from routes.common import commit_trial
@@ -80,13 +81,13 @@ def edit_current_incident(current_incident_id):
     current_incident = CurrentIncident.query.get(current_incident_id)
     if request.method == "POST":
         data = request.get_json()
+        print(data)
         should_log_history = False
         now = datetime.now()
 
         current_incident.current_incident_description = data["current_incident_description"]
         current_incident.current_incident_x_axis = data["current_incident_x_axis"]
         current_incident.current_incident_y_axis = data["current_incident_y_axis"]
-        current_incident.current_incident_notes = data["current_incident_notes"]
         # TODO: replace 1 with current user
         if current_incident.current_incident_severity != data["current_incident_severity"]:
             current_incident.current_incident_severity = data["current_incident_severity"]
@@ -100,6 +101,7 @@ def edit_current_incident(current_incident_id):
             current_incident.current_incident_status_updated_at = now
             should_log_history = True
 
+        print(current_incident.to_dict())
         # insert in history
         if should_log_history:
             new_hist = CurrentIncidentStatusSeverityHistory(
@@ -117,3 +119,46 @@ def edit_current_incident(current_incident_id):
             socketio.emit("incident_updated", current_incident.to_dict())
         return commit_trial("تم تعديل البيانات بنجاح", on_success=emit_update)
     return jsonify({"response": "اللهم صل على سيدنا محمد"})
+
+
+@current_incident_bp.route("/edit-current-mission/<current_incident_id>/<current_mission_id>/<mission_order>", methods=["GET","POST"])
+def edit_current_mission(current_incident_id, current_mission_id, mission_order):
+    current_mission = (
+        CurrentIncidentMission.query
+        .filter_by(
+            current_incident_id=current_incident_id,
+            current_incident_mission_id=current_mission_id,
+            current_incident_mission_order=mission_order
+        )
+        .first()
+    )
+    if not current_mission:
+        return jsonify({"error": "المهمة غير موجودة"}), 404
+
+    if request.method == "POST":
+        data = request.get_json()
+        now = datetime.now()
+        old_status = current_mission.current_incident_mission_status
+
+        #TODO: add current user instead of 1
+        if old_status == data["current_incident_mission_status"]:
+            return jsonify({"error": "لم يتم تغيير الحالة"}), 400
+        current_mission.current_incident_mission_status = data["current_incident_mission_status"]
+        current_mission.current_incident_mission_status_updated_by = 1
+        current_mission.current_incident_mission_status_updated_at = now
+
+        new_mission_hist = CurrentIncidentMissionStatusHistory(
+            current_incident_mission_id=current_mission.id,
+            current_incident_mission_status=current_mission.current_incident_mission_status,
+            current_incident_mission_status_updated_by=current_mission.current_incident_mission_status_updated_by,
+            current_incident_mission_status_updated_at=now,
+        )
+        db.session.add(new_mission_hist)
+
+        def emit_update():
+            socketio.emit("mission_updated", current_mission.to_dict())
+
+        return commit_trial("تم تعديل البيانات بنجاح", on_success=emit_update)
+    return jsonify({"response": "اللهم صل على سيدنا محمد"})
+
+

@@ -117,6 +117,10 @@ def add_new_incident_type_mission():
         # )
         # db.session.add(new_i_t_m)
         # return commit_trial("تم إضافة البيانات بنجاح")
+        if not data["incident_type"]:
+            return jsonify({"error": "اختر نوع الازمة"}), 400
+        if not data["missions"]:
+            return jsonify({"error": "اختر مهمات أولا"}), 400
         try:
             old = IncidentTypeMission.query.filter_by(
                 incident_type_id=data["incident_type"]
