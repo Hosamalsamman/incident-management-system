@@ -36,10 +36,6 @@ class User(db.Model):
         server_default='0'
     )
 
-    usertoken = db.Column(
-        db.String(50),
-        nullable=True
-    )
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
