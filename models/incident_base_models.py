@@ -66,6 +66,10 @@ class Classification(db.Model):
 
     missions = db.relationship('Mission', back_populates='classification')
     incident_types = db.relationship('IncidentType', back_populates='classification')
+    sector_classifications = db.relationship(
+        "SectorClassification",
+        back_populates="classification"
+    )
 
     def __repr__(self):
         return f"<Classification {self.class_name}>"

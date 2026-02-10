@@ -1,8 +1,9 @@
 from flask import Blueprint, jsonify, request
 from extensions import socketio, db
-from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission, Branch, \
+from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission, \
     CurrentIncidentStatusSeverityHistory, CurrentIncidentMissionStatusHistory
 from models.incident_base_models import IncidentType, IncidentTypeMission
+from models.sectors import Branch
 from datetime import datetime
 from routes.common import commit_trial
 

@@ -3,29 +3,6 @@ from decimal import Decimal
 
 from extensions import db
 
-class Branch(db.Model):
-    __tablename__ = 'branches'
-
-    branch_id = db.Column(
-        db.Integer,
-        primary_key=True
-    )
-
-    branch_name = db.Column(
-        db.String(50),
-        nullable=False,
-        unique=True
-    )
-
-    incidents = db.relationship('CurrentIncident', back_populates='branch')
-
-    def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-    def __repr__(self):
-        return f"<Branch id={self.branch_id} name={self.branch_name}>"
-
-
 class CurrentIncident(db.Model):
     __tablename__ = 'current_incidents'
 
@@ -110,9 +87,21 @@ class CurrentIncident(db.Model):
 
     # Relationships
     missions = db.relationship("CurrentIncidentMission", back_populates="incident", lazy="joined")
-    created_by_user = db.relationship("User", foreign_keys=[current_incident_created_by])
-    severity_updated_by_user = db.relationship("User", foreign_keys=[current_incident_severity_updated_by])
-    status_updated_by_user = db.relationship("User", foreign_keys=[current_incident_status_updated_by])
+    created_by_user = db.relationship(
+        "User",
+        foreign_keys=[current_incident_created_by],
+        back_populates="created_incidents"
+    )
+    severity_updated_by_user = db.relationship(
+        "User",
+        foreign_keys=[current_incident_severity_updated_by],
+        back_populates="severity_updated_incidents"
+    )
+    status_updated_by_user = db.relationship(
+        "User",
+        foreign_keys=[current_incident_status_updated_by],
+        back_populates="status_updated_incidents"
+    )
     incident_type = db.relationship("IncidentType", back_populates="incidents")
     severity = db.relationship("IncidentSeverity", back_populates="incidents")
     status = db.relationship("Status", back_populates="incidents")
@@ -130,7 +119,7 @@ class CurrentIncident(db.Model):
             else:
                 result[c.name] = val
         result["branch_name"] = self.branch.branch_name
-        result["user_name"] = self.created_by_user.username
+        result["user_name"] = self.created_by_user.emp_name
         result["incident_type_name"] = self.incident_type.incident_type_name
         result['missions'] = [m.to_dict() for m in self.missions]
 
@@ -237,7 +226,11 @@ class CurrentIncidentMission(db.Model):
     # Relationships
     incident = db.relationship("CurrentIncident", back_populates="missions")
     mission = db.relationship("Mission")
-    status_updated_by_user = db.relationship("User", foreign_keys=[current_incident_mission_status_updated_by])
+    status_updated_by_user = db.relationship(
+        "User",
+        foreign_keys=[current_incident_mission_status_updated_by],
+        back_populates="mission_status_updated_missions"
+    )
     status = db.relationship("Status", foreign_keys=[current_incident_mission_status])
     status_history = db.relationship(
         "CurrentIncidentMissionStatusHistory",
