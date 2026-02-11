@@ -107,6 +107,7 @@ class CurrentIncident(db.Model):
     status = db.relationship("Status", back_populates="incidents")
     branch = db.relationship('Branch', back_populates='incidents')
     status_severity_history = db.relationship("CurrentIncidentStatusSeverityHistory", back_populates="current_incident")
+    incident_managers = db.relationship("CurrentIncidentManager", back_populates="incident")
 
     def to_dict(self):
         result = {}
@@ -379,3 +380,59 @@ class CurrentIncidentMissionStatusHistory(db.Model):
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class CurrentIncidentManager(db.Model):
+    __tablename__ = "current_incident_managers"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    current_incident_id = db.Column(
+        db.Integer,
+        db.ForeignKey("current_incidents.current_incident_id"),
+        nullable=False
+    )
+
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    assigned_by = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    assigned_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    # 🔗 Relationships
+    incident = db.relationship(
+        "CurrentIncident",
+        back_populates="incident_managers"
+    )
+
+    manager = db.relationship(
+        "User",
+        foreign_keys=[user_id],
+        back_populates="managed_incidents"
+    )
+
+    assigned_by_user = db.relationship(
+        "User",
+        foreign_keys=[assigned_by],
+        back_populates="assignments_made"
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "current_incident_id",
+            "user_id",
+            name="uq_current_incident_managers_complex"
+        ),
+    )

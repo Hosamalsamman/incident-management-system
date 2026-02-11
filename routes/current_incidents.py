@@ -1,11 +1,39 @@
 from flask import Blueprint, jsonify, request
 from extensions import socketio, db
+from models import User
 from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission, \
-    CurrentIncidentStatusSeverityHistory, CurrentIncidentMissionStatusHistory
+    CurrentIncidentStatusSeverityHistory, CurrentIncidentMissionStatusHistory, CurrentIncidentManager
 from models.incident_base_models import IncidentType, IncidentTypeMission
-from models.sectors import Branch
+from models.sectors import Branch, SectorManagement, SectorBranch, SectorClassification
 from datetime import datetime
 from routes.common import commit_trial
+
+def assign_incident_manager(incident):
+    return (
+        User.query
+        .join(SectorManagement)
+        .filter(
+            User.is_active == True,
+
+            # 🔥 Level 2 = Incident Manager
+            SectorManagement.authority_level_id >= 2,
+
+            # User level must match sector level
+            User.authority_level_id == SectorManagement.authority_level_id,
+
+            # Sector handles branch
+            SectorManagement.sector_branches.any(
+                SectorBranch.branch_id == incident.branch_id
+            ),
+
+            # Sector handles classification
+            SectorManagement.classifications.any(
+                SectorClassification.class_id == incident.incident_type.class_id
+            ),
+        )
+        .order_by(User.authority_level_id.asc())
+        .first()
+    )
 
 
 current_incident_bp = Blueprint("current_incident", __name__)
@@ -28,18 +56,19 @@ def add_current_incident():
     branches_list = [branch.to_dict() for branch in branches]
     if request.method == "POST":
         data = request.get_json()
+        now = datetime.now()
         # TODO: add real user id instead of 1
         new_current_incident = CurrentIncident(
             current_incident_description=data["current_incident_description"],
             current_incident_type_id=data["current_incident_type_id"],
             current_incident_created_by=1,
-            current_incident_created_at=datetime.now(),
+            current_incident_created_at=now,
             current_incident_severity=data["current_incident_severity"],
             current_incident_severity_updated_by=1,
-            current_incident_severity_updated_at=datetime.now(),
+            current_incident_severity_updated_at=now,
             current_incident_status_updated_by=1,
             current_incident_status=1,
-            current_incident_status_updated_at=datetime.now(),
+            current_incident_status_updated_at=now,
             current_incident_x_axis=data["current_incident_x_axis"],
             current_incident_y_axis=data["current_incident_y_axis"],
             current_incident_notes=data["current_incident_notes"],
@@ -49,6 +78,7 @@ def add_current_incident():
         db.session.add(new_current_incident)
         # print("after add: ", new_current_incident.current_incident_id)     None
         # Fetch predefined missions for this incident type
+        db.session.flush()
         predefined_missions = IncidentTypeMission.query.filter_by(
             incident_type_id=new_current_incident.current_incident_type_id
         ).all()
@@ -67,6 +97,17 @@ def add_current_incident():
             return jsonify({
                 "error": "لا يمكن انشاء أزمة ليس لها مهمات مسجلة مسبقا"
             }), 400
+
+        manager = assign_incident_manager(new_current_incident)
+
+        if manager:
+            assignment = CurrentIncidentManager(
+                current_incident_id=new_current_incident.current_incident_id,
+                user_id=manager.user_id,
+                assigned_by=1, # system
+                assigned_at=now
+            )
+            db.session.add(assignment)
 
         def after_commit():
             print("New incident added:", new_current_incident.to_dict())

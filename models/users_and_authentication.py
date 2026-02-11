@@ -54,6 +54,20 @@ class User(db.Model):
         back_populates="users"
     )
 
+    # Incidents this user is assigned as manager
+    managed_incidents = db.relationship(
+        "CurrentIncidentManager",
+        foreign_keys="CurrentIncidentManager.user_id",
+        back_populates="manager"
+    )
+
+    # Assignments this user performed
+    assignments_made = db.relationship(
+        "CurrentIncidentManager",
+        foreign_keys="CurrentIncidentManager.assigned_by",
+        back_populates="assigned_by_user"
+    )
+
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
