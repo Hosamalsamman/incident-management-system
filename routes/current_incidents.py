@@ -1,8 +1,12 @@
-from flask import Blueprint, jsonify, request
+import os
+import uuid
+
+from flask import Blueprint, jsonify, request, current_app, send_file
 from extensions import socketio, db
 from models import User
 from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission, \
-    CurrentIncidentStatusSeverityHistory, CurrentIncidentMissionStatusHistory, CurrentIncidentManager
+    CurrentIncidentStatusSeverityHistory, CurrentIncidentMissionStatusHistory, CurrentIncidentManager, \
+    CurrentIncidentPhoto
 from models.incident_base_models import IncidentType, IncidentTypeMission
 from models.sectors import Branch, SectorManagement, SectorBranch, SectorClassification
 from datetime import datetime
@@ -203,4 +207,67 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order)
         return commit_trial("تم تعديل البيانات بنجاح", on_success=emit_update)
     return jsonify({"response": "اللهم صل على سيدنا محمد"})
 
+
+
+@current_incident_bp.route("/upload-incident-photo/<int:incident_id>", methods=["POST"])
+def upload_incident_photo(incident_id):
+    if request.method == "POST":
+        file = request.files.get("photo")
+        if file.content_length > 5 * 1024 * 1024:
+            return {"error": "الصورة أكبر من الحجم المسموح"}, 400
+        description = request.form.get("description")
+        # TODO: Add user_id from session
+        user_id = 1
+
+        if not file:
+            return {"error": "لا يوجد صور، لم يتم الحفظ"}, 400
+
+        # Generate unique filename
+        extension = os.path.splitext(file.filename)[1]
+        filename = f"{uuid.uuid4()}{extension}"
+
+        # Define upload folder
+        upload_folder = os.path.join(current_app.root_path, "uploads", "incidents", str(incident_id))
+        os.makedirs(upload_folder, exist_ok=True)
+
+        # Full path
+        full_path = os.path.join(upload_folder, filename)
+
+        # Save file to disk
+        file.save(full_path)
+
+        # Save relative path in DB
+        relative_path = os.path.join("uploads", "incidents", str(incident_id), filename)
+
+        photo = CurrentIncidentPhoto(
+            current_incident_id=incident_id,
+            file_path=relative_path,
+            description=description,
+            current_incident_photo_uploaded_by=user_id,
+            current_incident_photo_uploaded_at=datetime.now()
+        )
+
+        db.session.add(photo)
+        return commit_trial("تم إضافة الصورة بنجاح")
+    return jsonify({"response": "سبحان الله وبحمده سبحان الله العظيم"})
+
+
+@current_incident_bp.route("/incident-photos/<int:incident_id>", methods=["GET"])
+def get_incident_photos(incident_id):
+
+    photos = CurrentIncidentPhoto.query.filter_by(
+        current_incident_id=incident_id
+    ).all()
+    photos_list = [photo.to_dict() for photo in photos]
+    return jsonify(photos_list)
+
+
+@current_incident_bp.route("/view-incident-photo/<int:photo_id>")
+def view_incident_photo(photo_id):
+
+    photo = CurrentIncidentPhoto.query.get_or_404(photo_id)
+
+    full_path = os.path.join(current_app.root_path, photo.file_path)
+
+    return send_file(full_path)
 

@@ -108,6 +108,7 @@ class CurrentIncident(db.Model):
     branch = db.relationship('Branch', back_populates='incidents')
     status_severity_history = db.relationship("CurrentIncidentStatusSeverityHistory", back_populates="current_incident")
     incident_managers = db.relationship("CurrentIncidentManager", back_populates="incident")
+    photos = db.relationship("CurrentIncidentPhoto", back_populates="incident")
 
     def to_dict(self):
         result = {}
@@ -436,3 +437,60 @@ class CurrentIncidentManager(db.Model):
             name="uq_current_incident_managers_complex"
         ),
     )
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class CurrentIncidentPhoto(db.Model):
+    __tablename__ = "current_incident_photos"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    current_incident_id = db.Column(
+        db.Integer,
+        db.ForeignKey("current_incidents.current_incident_id"),
+        nullable=False
+    )
+
+    file_path = db.Column(db.String(500), nullable=False)
+
+    description = db.Column(
+        db.String(2000),  # nvarchar(2000)
+        nullable=False
+    )
+
+    current_incident_photo_uploaded_by = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    current_incident_photo_uploaded_at = db.Column(
+        db.DateTime,
+        nullable=False)
+
+    # ==========================
+    # Relationships
+    # ==========================
+
+    incident = db.relationship(
+        "CurrentIncident",
+        back_populates="photos"
+    )
+
+    uploaded_by = db.relationship(
+        "User",
+        back_populates="uploaded_incident_photos"
+    )
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    def __repr__(self):
+        return (
+            f"<CurrentIncidentPhoto "
+            f"id={self.id}, "
+            f"incident={self.current_incident_id}, "
+            f"uploaded_by={self.current_incident_photo_uploaded_by}>"
+        )
