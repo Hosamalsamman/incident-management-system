@@ -105,6 +105,7 @@ def add_current_incident():
         manager = assign_incident_manager(new_current_incident)
 
         if manager:
+            new_current_incident.manager_id = manager.user_id
             assignment = CurrentIncidentManager(
                 current_incident_id=new_current_incident.current_incident_id,
                 user_id=manager.user_id,
@@ -212,9 +213,8 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order)
 @current_incident_bp.route("/upload-incident-photo/<int:incident_id>", methods=["POST"])
 def upload_incident_photo(incident_id):
     if request.method == "POST":
+        current_incident = CurrentIncident.query.get_or_404(incident_id)
         file = request.files.get("photo")
-        if file.content_length > 5 * 1024 * 1024:
-            return {"error": "الصورة أكبر من الحجم المسموح"}, 400
         description = request.form.get("description")
         # TODO: Add user_id from session
         user_id = 1
@@ -227,7 +227,7 @@ def upload_incident_photo(incident_id):
         filename = f"{uuid.uuid4()}{extension}"
 
         # Define upload folder
-        upload_folder = os.path.join(current_app.root_path, "uploads", "incidents", str(incident_id))
+        upload_folder = os.path.join(r"D:\IMS_UPLOADS", "uploads", "incidents", str(incident_id))
         os.makedirs(upload_folder, exist_ok=True)
 
         # Full path
@@ -244,11 +244,15 @@ def upload_incident_photo(incident_id):
             file_path=relative_path,
             description=description,
             current_incident_photo_uploaded_by=user_id,
-            current_incident_photo_uploaded_at=datetime.now()
+            current_incident_photo_uploaded_at=datetime.now(),
+            current_incident_status=current_incident.current_incident_status,
+            x_axis=request.form.get("x_axis"),
+            y_axis=request.form.get("y_axis")
         )
-
         db.session.add(photo)
-        return commit_trial("تم إضافة الصورة بنجاح")
+        def emit_update():
+            socketio.emit("incident_updated", photo.incident.to_dict())
+        return commit_trial("تم إضافة الصورة بنجاح", on_success=emit_update)
     return jsonify({"response": "سبحان الله وبحمده سبحان الله العظيم"})
 
 
@@ -259,6 +263,7 @@ def get_incident_photos(incident_id):
         current_incident_id=incident_id
     ).all()
     photos_list = [photo.to_dict() for photo in photos]
+    print(photos_list)
     return jsonify(photos_list)
 
 
@@ -267,7 +272,7 @@ def view_incident_photo(photo_id):
 
     photo = CurrentIncidentPhoto.query.get_or_404(photo_id)
 
-    full_path = os.path.join(current_app.root_path, photo.file_path)
+    full_path = os.path.join(r"D:\IMS_UPLOADS", photo.file_path)
 
     return send_file(full_path)
 

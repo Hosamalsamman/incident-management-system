@@ -85,6 +85,12 @@ class CurrentIncident(db.Model):
         nullable=False
     )
 
+    manager_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=True  # allow incident without manager
+    )
+
     # Relationships
     missions = db.relationship("CurrentIncidentMission", back_populates="incident", lazy="joined")
     created_by_user = db.relationship(
@@ -109,6 +115,11 @@ class CurrentIncident(db.Model):
     status_severity_history = db.relationship("CurrentIncidentStatusSeverityHistory", back_populates="current_incident")
     incident_managers = db.relationship("CurrentIncidentManager", back_populates="incident")
     photos = db.relationship("CurrentIncidentPhoto", back_populates="incident")
+    manager = db.relationship(
+        "User",
+        foreign_keys=[manager_id],
+        back_populates="current_managed_incidents"
+    )
 
     def to_dict(self):
         result = {}
@@ -122,8 +133,10 @@ class CurrentIncident(db.Model):
                 result[c.name] = val
         result["branch_name"] = self.branch.branch_name
         result["user_name"] = self.created_by_user.emp_name
+        result["manager_name"] = self.manager.emp_name if self.manager else None
         result["incident_type_name"] = self.incident_type.incident_type_name
         result['missions'] = [m.to_dict() for m in self.missions]
+        result["photos"] = [p.to_dict() for p in self.photos]
 
         return result
 
@@ -169,6 +182,7 @@ class Status(db.Model):
 
     incidents = db.relationship("CurrentIncident", back_populates="status")
     incident_missions = db.relationship("CurrentIncidentMission", back_populates="status")
+    incident_photos = db.relationship("CurrentIncidentPhoto", back_populates="status")
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -457,7 +471,7 @@ class CurrentIncidentPhoto(db.Model):
 
     description = db.Column(
         db.String(2000),  # nvarchar(2000)
-        nullable=False
+        nullable=True
     )
 
     current_incident_photo_uploaded_by = db.Column(
@@ -469,6 +483,16 @@ class CurrentIncidentPhoto(db.Model):
     current_incident_photo_uploaded_at = db.Column(
         db.DateTime,
         nullable=False)
+
+    current_incident_status = db.Column(
+        db.Integer,
+        db.ForeignKey("statuses.status_id"),
+        nullable=False
+    )
+
+    # 🔥 Coordinates
+    x_axis = db.Column(db.Numeric(8, 6), nullable=False)
+    y_axis = db.Column(db.Numeric(9, 6), nullable=False)
 
     # ==========================
     # Relationships
@@ -484,8 +508,23 @@ class CurrentIncidentPhoto(db.Model):
         back_populates="uploaded_incident_photos"
     )
 
+    status = db.relationship(
+        "Status",
+        back_populates="incident_photos"
+    )
+
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        result = {}
+        for c in self.__table__.columns:
+            val = getattr(self, c.name)
+            if isinstance(val, datetime):
+                result[c.name] = val.isoformat()  # ✅ Convert to ISO string
+            elif isinstance(val, Decimal):
+                result[c.name] = float(val)
+            else:
+                result[c.name] = val
+        result["user_name"] = self.uploaded_by.emp_name
+        return result
 
     def __repr__(self):
         return (

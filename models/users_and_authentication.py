@@ -69,6 +69,12 @@ class User(db.Model):
         "CurrentIncidentPhoto",
         back_populates="uploaded_by"
     )
+    current_managed_incidents = db.relationship(
+        "CurrentIncident",
+        back_populates="manager",
+        foreign_keys="CurrentIncident.manager_id",
+        lazy=True
+    )
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
