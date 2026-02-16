@@ -9,14 +9,14 @@ from flask_cors import CORS
 from extensions import db
 from routes import incident_socket
 from extensions import socketio
-
-
+from .users import users_bp
 
 load_dotenv()
 
 def register_routes(app):
     app.register_blueprint(incident_base_bp)
     app.register_blueprint(current_incident_bp)
+    app.register_blueprint(users_bp)
 
 
 def create_app():

@@ -6,7 +6,7 @@ from extensions import socketio, db
 from models import User
 from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission, \
     CurrentIncidentStatusSeverityHistory, CurrentIncidentMissionStatusHistory, CurrentIncidentManager, \
-    CurrentIncidentPhoto
+    CurrentIncidentPhoto, CurrentIncidentMissionEmployee
 from models.incident_base_models import IncidentType, IncidentTypeMission
 from models.sectors import Branch, SectorManagement, SectorBranch, SectorClassification
 from datetime import datetime
@@ -276,3 +276,28 @@ def view_incident_photo(photo_id):
 
     return send_file(full_path)
 
+
+@current_incident_bp.route("/mission-user-assign/<int:current_incident_id>", methods=["GET", "POST"])
+def mission_user_assign(current_incident_id):
+    incident = CurrentIncident.query.get_or_404(current_incident_id)
+    # TODO: validate that current user is the current incident manager
+    # if incident.manager_id != current_user.user_id:
+    # return you are not the manager
+    if request.method == "POST":
+        data = request.get_json()
+        # TODO: replace 1 with current user id
+        db.session.add_all(
+            [
+                CurrentIncidentMissionEmployee(
+                    current_incident_mission_id=obj["mission_id"],
+                    current_incident_mission_emp=obj["user_id"],
+                    current_incident_mission_assigned_by=incident.manager_id,
+                    current_incident_mission_assigned_at=datetime.now()
+                )
+                for obj in data
+            ]
+        )
+        def emit_update():
+            socketio.emit("incident_updated", incident.to_dict())
+        return commit_trial("تم تعيين الموظف بنجاح", on_success=emit_update)
+    return jsonify({"response": "لا حول ولا قوة إلا بالله العلي العظيم"})

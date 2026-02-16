@@ -253,6 +253,7 @@ class CurrentIncidentMission(db.Model):
         back_populates="current_incident_mission",
         order_by="CurrentIncidentMissionStatusHistory.current_incident_mission_status_updated_at"
     )
+    assigned_employees = db.relationship("CurrentIncidentMissionEmployee", back_populates="mission")
 
     def to_dict(self):
         result = {}
@@ -265,6 +266,7 @@ class CurrentIncidentMission(db.Model):
             else:
                 result[c.name] = val
         result["mission_name"] = self.mission.mission_name
+        result["assigned_employees"] = [emp.to_dict() for emp in self.assigned_employees]
         return result
 
     def __repr__(self):
@@ -533,3 +535,82 @@ class CurrentIncidentPhoto(db.Model):
             f"incident={self.current_incident_id}, "
             f"uploaded_by={self.current_incident_photo_uploaded_by}>"
         )
+
+
+class CurrentIncidentMissionEmployee(db.Model):
+    __tablename__ = "current_incident_mission_employees"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    current_incident_mission_id = db.Column(
+        db.Integer,
+        db.ForeignKey("current_incident_missions.id"),
+        nullable=False
+    )
+
+    current_incident_mission_emp = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    current_incident_mission_assigned_by = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    current_incident_mission_assigned_at = db.Column(
+        db.DateTime,
+        nullable=False
+    )
+
+    # =====================
+    # Constraints
+    # =====================
+    __table_args__ = (
+        db.UniqueConstraint(
+            "current_incident_mission_id",
+            "current_incident_mission_emp",
+            name="uq_current_incident_mission_employees_complex"
+        ),
+    )
+
+    # =====================
+    # Relationships
+    # =====================
+
+    mission = db.relationship(
+        "CurrentIncidentMission",
+        back_populates="assigned_employees"
+    )
+
+    employee = db.relationship(
+        "User",
+        foreign_keys=[current_incident_mission_emp],
+        back_populates="mission_assignments"
+    )
+
+    assigned_by_user = db.relationship(
+        "User",
+        foreign_keys=[current_incident_mission_assigned_by],
+        back_populates="mission_assigned_by"
+    )
+
+    def __repr__(self):
+        return (
+            f"<MissionEmployee "
+            f"id={self.id} "
+            f"mission_id={self.current_incident_mission_id} "
+            f"employee_id={self.current_incident_mission_emp}>"
+        )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "current_incident_mission_id": self.current_incident_mission_id,
+            "employee_id": self.current_incident_mission_emp,
+            "assigned_by": self.current_incident_mission_assigned_by,
+            "assigned_at": self.current_incident_mission_assigned_at.isoformat()
+            if self.current_incident_mission_assigned_at else None,
+        }

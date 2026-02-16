@@ -75,9 +75,25 @@ class User(db.Model):
         foreign_keys="CurrentIncident.manager_id",
         lazy=True
     )
+    # Missions where this user is assigned as employee
+    mission_assignments = db.relationship(
+        "CurrentIncidentMissionEmployee",
+        foreign_keys="CurrentIncidentMissionEmployee.current_incident_mission_emp",
+        back_populates="employee")
+    # Missions this user assigned to others
+    mission_assigned_by = db.relationship(
+        "CurrentIncidentMissionEmployee",
+        foreign_keys="CurrentIncidentMissionEmployee.current_incident_mission_assigned_by",
+        back_populates="assigned_by_user")
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        data.pop("userpassword")
+        data["sector_management_name"] = self.sector_management.name if self.sector_management else None
+        data["group_name"] = self.group.group_name if self.group else None
+        data["authority_name"] = self.authority.description if self.authority else None
+        data["user_classes"] = [c.to_dict() for c in self.sector_management.classifications]
+        return data
 
     def __repr__(self):
         return f"<User id={self.user_id} name={self.emp_name}>"
