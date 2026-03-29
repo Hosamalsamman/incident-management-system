@@ -19,6 +19,10 @@ class User(db.Model):
         'Group',
         back_populates='users'
     )
+    # User device tokens
+    tokens = db.relationship(
+        "UserToken",
+        back_populates="user")
     # 🔁 Incidents CREATED by this user
     created_incidents = db.relationship(
         "CurrentIncident",
@@ -91,7 +95,7 @@ class User(db.Model):
         data.pop("userpassword")
         data["sector_management_name"] = self.sector_management.name if self.sector_management else None
         data["group_name"] = self.group.group_name if self.group else None
-        data["authority_name"] = self.authority.description if self.authority else None
+        data["authority_name"] = self.authority_level.description if self.authority_level else None
         data["user_classes"] = [c.to_dict() for c in self.sector_management.classifications]
         return data
 
@@ -138,10 +142,50 @@ class AuthorityLevel(db.Model):
         back_populates="authority_level"
     )
 
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    def __repr__(self):
+        return f"<Group id={self.id} name={self.description}>"
+
     # 🔁 One authority level → many users
     users = db.relationship(
         "User",
         back_populates="authority_level"
     )
+
+
+class UserToken(db.Model):
+    __tablename__ = "user_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    token = db.Column(
+        db.String(300),
+        nullable=False,
+        unique=True
+    )
+
+    user = db.relationship(
+        "User",
+        back_populates="tokens"
+    )
+
+
+    def __repr__(self):
+        return f"<UserToken id={self.id} user_id={self.user_id}>"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "token": self.token
+        }
 
 

@@ -1,3 +1,6 @@
+from datetime import datetime
+from decimal import Decimal
+
 from extensions import db
 
 class Branch(db.Model):
@@ -78,6 +81,18 @@ class SectorManagement(db.Model):
 
     sector_branches = db.relationship("SectorBranch", back_populates="sector")
 
+    def to_dict(self):
+        result = {}
+        for c in self.__table__.columns:
+            val = getattr(self, c.name)
+            if isinstance(val, datetime):
+                result[c.name] = val.isoformat()  # ✅ Convert to ISO string
+            elif isinstance(val, Decimal):
+                result[c.name] = float(val)
+            else:
+                result[c.name] = val
+        return result
+
 
 class SectorClassification(db.Model):
     __tablename__ = 'sector_classifications'
@@ -133,3 +148,5 @@ class SectorBranch(db.Model):
 
     def __repr__(self):
         return f"<SectorBranch id={self.id}>"
+
+

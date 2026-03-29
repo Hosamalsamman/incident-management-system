@@ -1,4 +1,6 @@
 import os
+from datetime import timedelta
+
 from flask import Flask, jsonify
 from dotenv import load_dotenv
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -10,6 +12,7 @@ from extensions import db
 from routes import incident_socket
 from extensions import socketio
 from .users import users_bp
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
 load_dotenv()
 
@@ -25,6 +28,13 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DB_URI")
     app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
     # app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    # Initialize JWT
+    app.config['JWT_SECRET_KEY'] = os.getenv("FLASK_KEY")
+    # Access token: 30 days
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
+    jwt = JWTManager(app)
+
     CORS(app)
     CORS(app, supports_credentials=True, origins=["http://localhost:5000"])
 

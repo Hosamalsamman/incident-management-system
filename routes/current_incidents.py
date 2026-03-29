@@ -113,6 +113,11 @@ def add_current_incident():
                 assigned_at=now
             )
             db.session.add(assignment)
+        else:
+            db.session.rollback()
+            return jsonify({
+                "error": "لم يتم انشاء الأزمة، لا يوجد مديرين صالحين في الوقت الحالي"
+            }), 400
 
         def after_commit():
             print("New incident added:", new_current_incident.to_dict())
@@ -279,25 +284,41 @@ def view_incident_photo(photo_id):
 
 @current_incident_bp.route("/mission-user-assign/<int:current_incident_id>", methods=["GET", "POST"])
 def mission_user_assign(current_incident_id):
+    users = User.query.filter(User.is_active == True).all()
+    users_list = [user.to_dict() for user in users]
     incident = CurrentIncident.query.get_or_404(current_incident_id)
     # TODO: validate that current user is the current incident manager
     # if incident.manager_id != current_user.user_id:
     # return you are not the manager
+    if incident.current_incident_status > 5:
+        return jsonify({"error": "لا يمكن تعيين موظفين لازمة مغلقة"}), 400
     if request.method == "POST":
         data = request.get_json()
-        # TODO: replace 1 with current user id
+        now = datetime.now()
+        print(data)
+
         db.session.add_all(
             [
                 CurrentIncidentMissionEmployee(
                     current_incident_mission_id=obj["mission_id"],
                     current_incident_mission_emp=obj["user_id"],
                     current_incident_mission_assigned_by=incident.manager_id,
-                    current_incident_mission_assigned_at=datetime.now()
+                    current_incident_mission_assigned_at=now
                 )
                 for obj in data
             ]
         )
+        mission_ids = {obj["mission_id"] for obj in data}
+        for mission in incident.missions:
+            if mission.id in mission_ids:
+                mission.current_incident_mission_status = 2 # assigned
+                mission.current_incident_mission_status_updated_by = incident.manager_id
+                mission.current_incident_mission_status_updated_at = now
+        # TOTHINK: should user accept multiple missions?
+
         def emit_update():
             socketio.emit("incident_updated", incident.to_dict())
-        return commit_trial("تم تعيين الموظف بنجاح", on_success=emit_update)
+        return commit_trial("تم تعيين الموظفين بنجاح", on_success=emit_update)
     return jsonify({"response": "لا حول ولا قوة إلا بالله العلي العظيم"})
+
+
