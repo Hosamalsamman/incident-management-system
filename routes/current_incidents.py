@@ -10,7 +10,8 @@ from models.current_incident_models import CurrentIncident, IncidentSeverity, Cu
 from models.incident_base_models import IncidentType, IncidentTypeMission
 from models.sectors import Branch, SectorManagement, SectorBranch, SectorClassification
 from datetime import datetime
-from routes.common import commit_trial
+from routes.common import commit_trial, add_tokens_to_group, send_incident_notification
+
 
 def assign_incident_manager(incident):
     return (
@@ -122,6 +123,22 @@ def add_current_incident():
         def after_commit():
             print("New incident added:", new_current_incident.to_dict())
             socketio.emit("incident_created", new_current_incident.to_dict())
+
+            tokens = [tok.token for tok in manager.tokens if tok.token]
+            if tokens:
+                add_tokens_to_group(
+                    tokens,
+                    f"Team_incident_{new_current_incident.current_incident_id}")
+                send_incident_notification.delay(
+                    incident_id=new_current_incident.current_incident_id,
+                    event="أزمة جديدة",
+                    body=f"تم تعيينك مديراً لازمة {new_current_incident.current_incident_description}",
+                    data={
+                        "incident_id": str(new_current_incident.current_incident_id),
+                        "type": "incident_created"
+                    }
+                )
+
 
         return commit_trial("تم إضافة الأزمة بنجاح", on_success=after_commit)
 

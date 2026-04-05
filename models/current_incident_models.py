@@ -610,7 +610,8 @@ class CurrentIncidentMissionEmployee(db.Model):
             "id": self.id,
             "current_incident_mission_id": self.current_incident_mission_id,
             "employee_id": self.current_incident_mission_emp,
-            "assigned_by": self.current_incident_mission_assigned_by,
+            "emp_name": self.employee.emp_name,
+            "assigned_by": self.assigned_by_user.emp_name,
             "assigned_at": self.current_incident_mission_assigned_at.isoformat()
             if self.current_incident_mission_assigned_at else None,
         }

@@ -1,12 +1,18 @@
 from functools import wraps
-
 from sqlalchemy.exc import IntegrityError, DataError, SQLAlchemyError
 from flask import jsonify, request, g, session as flask_session
 from extensions import db
 from flask_socketio import SocketIO
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-
+from firebase_admin import messaging
 from models import User
+from celery import Celery
+
+celery = Celery(
+    "ims",
+    broker="redis://localhost:6379/0",
+    backend="redis://localhost:6379/0"
+)
 
 
 def commit_trial(success_response, on_success=None):
@@ -43,8 +49,8 @@ def private_route_for_groups(allowed_groups):
     def decorator(f):
         # print(f"JWT_SECRET_KEY is set: {os.getenv('FLASK_KEY') is not None}")
         # print(f"JWT_ACCESS_TOKEN_EXPIRES: {app.config.get('JWT_ACCESS_TOKEN_EXPIRES')}")
-        @wraps(f)
         @jwt_required()  # Verify JWT token
+        @wraps(f)
         def decorated_function(*args, **kwargs):
             # Get user identity from JWT token
             current_user_id = get_jwt_identity()
@@ -66,7 +72,7 @@ def private_route_for_groups(allowed_groups):
             g.current_user_username = user.username
             g.current_user_emp_code = user.emp_code
             g.current_user = user
-            flask_session['username'] = user.username
+            # flask_session['username'] = user.username
 
             return f(*args, **kwargs)
 
@@ -79,8 +85,8 @@ def private_route_for_auth_level(auth_level):
     def decorator(f):
         # print(f"JWT_SECRET_KEY is set: {os.getenv('FLASK_KEY') is not None}")
         # print(f"JWT_ACCESS_TOKEN_EXPIRES: {app.config.get('JWT_ACCESS_TOKEN_EXPIRES')}")
-        @wraps(f)
         @jwt_required()  # Verify JWT token
+        @wraps(f)
         def decorated_function(*args, **kwargs):
             # Get user identity from JWT token
             current_user_id = get_jwt_identity()
@@ -102,10 +108,37 @@ def private_route_for_auth_level(auth_level):
             g.current_user_username = user.username
             g.current_user_emp_code = user.emp_code
             g.current_user = user
-            flask_session['username'] = user.username
+            # flask_session['username'] = user.username
 
             return f(*args, **kwargs)
 
         return decorated_function
 
     return decorator
+
+
+def add_tokens_to_group(tokens, group_name):
+    messaging.subscribe_to_topic(tokens, group_name)
+
+
+def send_to_group(incident_id, title, body, data=None):
+    message = messaging.Message(
+        notification=messaging.Notification(
+            title=title,
+            body=body,
+        ),
+        data=data or {},
+        topic=f"Team_incident_{incident_id}",
+    )
+
+    messaging.send(message)
+
+
+@celery.task
+def send_incident_notification(incident_id, event, body, data=None):
+    send_to_group(
+        incident_id,
+        f"🚨 {event}",
+        body,
+        data=data or {}
+    )

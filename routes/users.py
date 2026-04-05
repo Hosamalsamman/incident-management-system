@@ -1,7 +1,7 @@
 import hashlib
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, jwt_required
 from sqlalchemy.exc import OperationalError
 from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db
@@ -98,7 +98,7 @@ def login():
 
 
 @users_bp.route("/change-password", methods=["GET", "POST"])
-@private_route_for_auth_level(0)
+@jwt_required()
 def change_password(current_user):
     if request.method == "POST":
         data = request.get_json()

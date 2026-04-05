@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from .current_incidents import current_incident_bp
+from .gis_date_route import gis_bp
 from .incident_base_routes import incident_base_bp
 from flask_cors import CORS
 from extensions import db
@@ -20,6 +21,7 @@ def register_routes(app):
     app.register_blueprint(incident_base_bp)
     app.register_blueprint(current_incident_bp)
     app.register_blueprint(users_bp)
+    app.register_blueprint(gis_bp)
 
 
 def create_app():
@@ -35,7 +37,6 @@ def create_app():
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
     jwt = JWTManager(app)
 
-    CORS(app)
     CORS(app, supports_credentials=True, origins=["http://localhost:5000"])
 
     @app.errorhandler(RequestEntityTooLarge)
