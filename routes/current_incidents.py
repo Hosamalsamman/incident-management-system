@@ -10,7 +10,7 @@ from models.current_incident_models import CurrentIncident, IncidentSeverity, Cu
 from models.incident_base_models import IncidentType, IncidentTypeMission
 from models.sectors import Branch, SectorManagement, SectorBranch, SectorClassification
 from datetime import datetime
-from routes.common import commit_trial, add_tokens_to_group, send_incident_notification
+from routes.common import commit_trial, add_tokens_to_group, send_incident_notification, private_route_for_auth_level
 
 
 def assign_incident_manager(incident):
@@ -52,7 +52,8 @@ def all_current_incidents():
 
 
 @current_incident_bp.route("/add-current-incident", methods=["GET","POST"])
-def add_current_incident():
+@private_route_for_auth_level(0)
+def add_current_incident(current_user):
     all_types = IncidentType.query.all()
     all_types_list = [t.to_dict() for t in all_types]
     all_severities = IncidentSeverity.query.all()
@@ -62,16 +63,15 @@ def add_current_incident():
     if request.method == "POST":
         data = request.get_json()
         now = datetime.now()
-        # TODO: add real user id instead of 1
         new_current_incident = CurrentIncident(
             current_incident_description=data["current_incident_description"],
             current_incident_type_id=data["current_incident_type_id"],
-            current_incident_created_by=1,
+            current_incident_created_by=current_user.user_id,
             current_incident_created_at=now,
             current_incident_severity=data["current_incident_severity"],
-            current_incident_severity_updated_by=1,
+            current_incident_severity_updated_by=current_user.user_id,
             current_incident_severity_updated_at=now,
-            current_incident_status_updated_by=1,
+            current_incident_status_updated_by=current_user.user_id,
             current_incident_status=1,
             current_incident_status_updated_at=now,
             current_incident_x_axis=data["current_incident_x_axis"],
@@ -89,6 +89,12 @@ def add_current_incident():
         ).all()
         # print("after query: ", new_current_incident.current_incident_id)   id generated as session.flush happened when query
 
+        if not predefined_missions:
+            db.session.rollback()
+            return jsonify({
+                "error": "لا يمكن انشاء أزمة ليس لها مهمات مسجلة مسبقا"
+            }), 400
+
         for m in predefined_missions:
             db.session.add(CurrentIncidentMission(
                 current_incident_id=new_current_incident.current_incident_id,
@@ -97,15 +103,10 @@ def add_current_incident():
                 current_incident_mission_status=1,  # reported
             ))
 
-        if not predefined_missions:
-            db.session.rollback()
-            return jsonify({
-                "error": "لا يمكن انشاء أزمة ليس لها مهمات مسجلة مسبقا"
-            }), 400
-
         manager = assign_incident_manager(new_current_incident)
 
         if manager:
+            print(manager.to_dict())
             new_current_incident.manager_id = manager.user_id
             assignment = CurrentIncidentManager(
                 current_incident_id=new_current_incident.current_incident_id,
@@ -126,6 +127,7 @@ def add_current_incident():
 
             tokens = [tok.token for tok in manager.tokens if tok.token]
             if tokens:
+                print("there are tokens")
                 add_tokens_to_group(
                     tokens,
                     f"Team_incident_{new_current_incident.current_incident_id}")

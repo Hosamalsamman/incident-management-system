@@ -11,7 +11,7 @@ class Base(DeclarativeBase):
 
 db = SQLAlchemy(model_class=Base)
 
-# cred = credentials.Certificate("firebase-service-account.json")
+cred = credentials.Certificate("firebase-service-account.json")
 
-# if not firebase_admin._apps:
-#     firebase_admin.initialize_app(cred)
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)

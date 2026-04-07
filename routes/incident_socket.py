@@ -19,7 +19,7 @@ def handle_connect(auth):
     # Send current incident immediately
     incidents = get_current_incidents()
     incidents_list = [i.to_dict() for i in incidents]
-    print(incidents_list)
+    # print(incidents_list)
     payload_size = len(json.dumps(incidents_list))
     print(f"Payload Size: {payload_size} bytes")
     emit("incident_snapshot", incidents_list)

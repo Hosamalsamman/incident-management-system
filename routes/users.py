@@ -1,5 +1,3 @@
-import hashlib
-
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import create_access_token, jwt_required
 from sqlalchemy.exc import OperationalError
@@ -72,20 +70,20 @@ def login():
 
     if request.method == "POST":
         data = request.get_json()
+        print(data)
         user = db.session.query(User).filter(User.username == data['username']).first()
         if not user or not check_password_hash(user.userpassword, data['password']):
             return jsonify({"error": "اسم مستخدم أو كلمة مرور خاطئة"}), 401
         else:
             if user.is_active:
                 # login token
-                token = create_access_token(identity=user.user_id)
+                token = create_access_token(identity=str(user.user_id))
 
-                hash_token = hashlib.sha256(data["device_token"].encode()).hexdigest()
-                existing_token = UserToken.query.filter_by(token=hash_token).first()
+                existing_token = UserToken.query.filter_by(token=data["device_token"]).first()
                 if not existing_token:
                     new_device_token = UserToken(
                         user_id=user.user_id,
-                        token=hash_token
+                        token=data["device_token"]
                     )
                     db.session.add(new_device_token)
                     commit_trial("تم الحفظ")
@@ -116,8 +114,7 @@ def change_password(current_user):
 def logout(current_user):
     if request.method == "POST":
         data = request.get_json()
-        hash_token = hashlib.sha256(data["device_token"].encode()).hexdigest()
-        existing_token = UserToken.query.filter_by(token=hash_token).first()
+        existing_token = UserToken.query.filter_by(token=data["device_token"]).first()
         if existing_token:
             db.session.delete(existing_token)
             commit_trial("تم الحذف")

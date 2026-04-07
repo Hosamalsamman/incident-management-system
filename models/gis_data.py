@@ -43,11 +43,17 @@ class Valve(db.Model):
 
     lat = db.Column(db.Numeric(9, 6), nullable=False)
     long = db.Column(db.Numeric(8, 6), nullable=False)
+    branch_id = db.Column(db.Integer, db.ForeignKey('branches.branch_id'), nullable=False)
 
     valve_type = db.relationship(
         "ValveType",
         back_populates="valves",
         lazy="joined"   # 🔥 important for map (avoid N+1)
+    )
+
+    branch = db.relationship(
+        "Branch",
+        back_populates="valves"
     )
 
     def to_dict(self):

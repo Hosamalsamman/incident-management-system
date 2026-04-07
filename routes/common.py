@@ -1,9 +1,10 @@
+import os
 from functools import wraps
 from sqlalchemy.exc import IntegrityError, DataError, SQLAlchemyError
 from flask import jsonify, request, g, session as flask_session
 from extensions import db
 from flask_socketio import SocketIO
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from firebase_admin import messaging
 from models import User
 from celery import Celery
@@ -83,8 +84,6 @@ def private_route_for_groups(allowed_groups):
 
 def private_route_for_auth_level(auth_level):
     def decorator(f):
-        # print(f"JWT_SECRET_KEY is set: {os.getenv('FLASK_KEY') is not None}")
-        # print(f"JWT_ACCESS_TOKEN_EXPIRES: {app.config.get('JWT_ACCESS_TOKEN_EXPIRES')}")
         @jwt_required()  # Verify JWT token
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -118,7 +117,8 @@ def private_route_for_auth_level(auth_level):
 
 
 def add_tokens_to_group(tokens, group_name):
-    messaging.subscribe_to_topic(tokens, group_name)
+    print(messaging.subscribe_to_topic(tokens, group_name))
+
 
 
 def send_to_group(incident_id, title, body, data=None):
@@ -131,7 +131,7 @@ def send_to_group(incident_id, title, body, data=None):
         topic=f"Team_incident_{incident_id}",
     )
 
-    messaging.send(message)
+    print(messaging.send(message))
 
 
 @celery.task

@@ -36,8 +36,12 @@ def create_app():
     # Access token: 30 days
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
     jwt = JWTManager(app)
-
+    CORS(app)
     CORS(app, supports_credentials=True, origins=["http://localhost:5000"])
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return jsonify({"error": str(error)}), 422
 
     @app.errorhandler(RequestEntityTooLarge)
     def handle_large_file(e):

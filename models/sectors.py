@@ -19,6 +19,7 @@ class Branch(db.Model):
 
     incidents = db.relationship('CurrentIncident', back_populates='branch')
     branch_sectors = db.relationship('SectorBranch', back_populates='branch')
+    valves = db.relationship("Valve", back_populates="branch")
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
