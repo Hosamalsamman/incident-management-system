@@ -2,18 +2,12 @@ import os
 from functools import wraps
 from sqlalchemy.exc import IntegrityError, DataError, SQLAlchemyError
 from flask import jsonify, request, g, session as flask_session
-from extensions import db
+from extensions import db, celery
 from flask_socketio import SocketIO
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from firebase_admin import messaging
 from models import User
-from celery import Celery
-
-celery = Celery(
-    "ims",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0"
-)
+from celery import shared_task
 
 
 def commit_trial(success_response, on_success=None):
@@ -130,15 +124,50 @@ def send_to_group(incident_id, title, body, data=None):
         data=data or {},
         topic=f"Team_incident_{incident_id}",
     )
+    response = messaging.send(message)  # returns message_id string
+    print("Message sent successfully, ID:", response)
+    return response
 
-    print(messaging.send(message))
+
+@celery.task(bind=True)
+def send_incident_notification(self, incident_id, event, body, data=None):
+    print("TASK STARTED")
+
+    try:
+        response = send_to_group(
+            incident_id,
+            f"🚨 {event}",
+            body,
+            data=data or {}
+        )
+
+        print("TASK SUCCESS, FCM ID:", response)
+
+    except Exception as e:
+        print("TASK FAILED:", str(e))
+        countdown = 2 ** self.request.retries
+        raise self.retry(exc=e, countdown=countdown)
+
+
+@celery.task(bind=True, max_retries=5)
+def process_incident_task(self, row):
+    """
+    Processes ONE incident.
+
+    Features:
+    - retry on failure
+    - isolated execution
+    """
+    try:
+        # insert cms incident
+        pass
+    except Exception as e:
+        # retry using Celery built-in system
+        raise self.retry(exc=e, countdown=10)
 
 
 @celery.task
-def send_incident_notification(incident_id, event, body, data=None):
-    send_to_group(
-        incident_id,
-        f"🚨 {event}",
-        body,
-        data=data or {}
-    )
+def fetch_new_rows_task():
+    rows = []
+    for row in rows:
+        process_incident_task.delay(row)

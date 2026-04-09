@@ -124,13 +124,21 @@ def add_current_incident(current_user):
         def after_commit():
             print("New incident added:", new_current_incident.to_dict())
             socketio.emit("incident_created", new_current_incident.to_dict())
-
             tokens = [tok.token for tok in manager.tokens if tok.token]
             if tokens:
                 print("there are tokens")
                 add_tokens_to_group(
                     tokens,
                     f"Team_incident_{new_current_incident.current_incident_id}")
+
+        result = commit_trial("تم إضافة الأزمة بنجاح", on_success=after_commit)
+
+        # send notification after commit, outside the callback
+        if result[1] == 200:
+            tokens = [tok.token for tok in manager.tokens if tok.token]
+            if tokens:
+                print(">>> ABOUT TO QUEUE TASK")
+                print("BROKER URL:", send_incident_notification.app.conf.broker_url)
                 send_incident_notification.delay(
                     incident_id=new_current_incident.current_incident_id,
                     event="أزمة جديدة",
@@ -140,10 +148,9 @@ def add_current_incident(current_user):
                         "type": "incident_created"
                     }
                 )
+                print(">>> TASK QUEUED")
 
-
-        return commit_trial("تم إضافة الأزمة بنجاح", on_success=after_commit)
-
+        return result
     return jsonify(types=all_types_list, severities=all_severities_list, branches=branches_list)
 
 
