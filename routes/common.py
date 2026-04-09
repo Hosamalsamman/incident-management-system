@@ -132,6 +132,29 @@ def send_to_group(incident_id, title, body, data=None):
 # cd C:\Users\hossam\PycharmProjects\ims
 # .venv\Scripts\activate
 # celery -A extensions.celery worker --loglevel=info --pool=solo
+
+# Testing the function from powershell
+# cd C:\Users\hossam\PycharmProjects\ims
+# .venv\Scripts\activate
+# >> python -c "from routes.common import send_incident_notification; r = send_incident_notification.delay(1, 'test', 'body'); print('ID:', r.id)"
+# To keep everything running after reboot
+# 1 Install nssm  https://nssm.cc/download
+# 2 Extract and setup
+# 3 Run these commands in powershell
+#  nssm install FlaskApp "C:\Users\hossam\PycharmProjects\ims\.venv\Scripts\python.exe" "C:\Users\hossam\PycharmProjects\ims\main.py"
+# Should respond with: Service "FlaskApp" installed successfully!
+#  nssm install CeleryWorker "C:\Users\hossam\PycharmProjects\ims\.venv\Scripts\celery.exe" "-A extensions.celery worker --loglevel=info --pool=solo"
+# Should respond with Service "CeleryWorker" installed successfully!
+# nssm set FlaskApp AppDirectory "C:\Users\hossam\PycharmProjects\ims"
+# nssm set CeleryWorker AppDirectory "C:\Users\hossam\PycharmProjects\ims"
+# Should respond with:
+# Set parameter "AppDirectory" for service "FlaskApp".
+# Set parameter "AppDirectory" for service "CeleryWorker".
+# nssm start FlaskApp
+# nssm start CeleryWorker
+# Should respond with:
+# SERVICE_RUNNING
+# SERVICE_RUNNING
 @celery.task(bind=True)
 def send_incident_notification(self, incident_id, event, body, data=None):
     print("TASK STARTED")

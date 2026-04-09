@@ -106,7 +106,7 @@ def add_current_incident(current_user):
         manager = assign_incident_manager(new_current_incident)
 
         if manager:
-            print(manager.to_dict())
+            # print(manager.to_dict())
             new_current_incident.manager_id = manager.user_id
             assignment = CurrentIncidentManager(
                 current_incident_id=new_current_incident.current_incident_id,
@@ -122,35 +122,29 @@ def add_current_incident(current_user):
             }), 400
 
         def after_commit():
-            print("New incident added:", new_current_incident.to_dict())
             socketio.emit("incident_created", new_current_incident.to_dict())
-            tokens = [tok.token for tok in manager.tokens if tok.token]
-            if tokens:
-                print("there are tokens")
+            device_tokens = [tok.token for tok in manager.tokens if tok.token]
+            if device_tokens:
+                # print("there are tokens")
                 add_tokens_to_group(
-                    tokens,
+                    device_tokens,
                     f"Team_incident_{new_current_incident.current_incident_id}")
 
         result = commit_trial("تم إضافة الأزمة بنجاح", on_success=after_commit)
 
         # send notification after commit, outside the callback
         if result[1] == 200:
-            tokens = [tok.token for tok in manager.tokens if tok.token]
-            if tokens:
-                print(">>> ABOUT TO QUEUE TASK")
-                print("BROKER URL:", send_incident_notification.app.conf.broker_url)
-                send_incident_notification.delay(
-                    incident_id=new_current_incident.current_incident_id,
-                    event="أزمة جديدة",
-                    body=f"تم تعيينك مديراً لازمة {new_current_incident.current_incident_description}",
-                    data={
-                        "incident_id": str(new_current_incident.current_incident_id),
-                        "type": "incident_created"
-                    }
-                )
-                print(">>> TASK QUEUED")
-
+            send_incident_notification.delay(
+                incident_id=new_current_incident.current_incident_id,
+                event="أزمة جديدة",
+                body=f"تم تعيينك مديراً لازمة {new_current_incident.current_incident_description}",
+                data={
+                    "incident_id": str(new_current_incident.current_incident_id),
+                    "type": "incident_created"
+                }
+            )
         return result
+
     return jsonify(types=all_types_list, severities=all_severities_list, branches=branches_list)
 
 
