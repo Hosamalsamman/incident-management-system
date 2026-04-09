@@ -128,7 +128,10 @@ def send_to_group(incident_id, title, body, data=None):
     print("Message sent successfully, ID:", response)
     return response
 
-
+# POWERSHELL commands to run celery
+# cd C:\Users\hossam\PycharmProjects\ims
+# .venv\Scripts\activate
+# celery -A extensions.celery worker --loglevel=info --pool=solo
 @celery.task(bind=True)
 def send_incident_notification(self, incident_id, event, body, data=None):
     print("TASK STARTED")
