@@ -24,9 +24,3 @@ celery = Celery(
     backend="redis://localhost:6379/0",
     include=["routes.common"]  # ← tells worker to import this module on startup
 )
-celery.conf.beat_schedule = {
-    "fetch-cms-incidents": {
-        "task": "tasks.cms_tasks.fetch_new_rows_task",
-        "schedule": 30.0,  # every 30 seconds
-    },
-}

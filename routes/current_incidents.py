@@ -10,7 +10,8 @@ from models.current_incident_models import CurrentIncident, IncidentSeverity, Cu
 from models.incident_base_models import IncidentType, IncidentTypeMission
 from models.sectors import Branch, SectorManagement, SectorBranch, SectorClassification
 from datetime import datetime
-from routes.common import commit_trial, add_tokens_to_group, send_incident_notification, private_route_for_auth_level
+from routes.common import commit_trial, add_tokens_to_group, private_route_for_auth_level, \
+    send_to_group, dispatch_notification
 
 
 def assign_incident_manager(incident):
@@ -120,6 +121,16 @@ def add_current_incident(current_user):
             return jsonify({
                 "error": "لم يتم انشاء الأزمة، لا يوجد مديرين صالحين في الوقت الحالي"
             }), 400
+        new_hist = CurrentIncidentStatusSeverityHistory(
+            current_incident_id=new_current_incident.current_incident_id,
+            current_incident_status=new_current_incident.current_incident_status,
+            current_incident_status_changed_by=1,
+            current_incident_status_changed_at=now,
+            current_incident_severity=new_current_incident.current_incident_severity,
+            current_incident_severity_changed_by=1,
+            current_incident_severity_changed_at=now
+        )
+        db.session.add(new_hist)
 
         def after_commit():
             socketio.emit("incident_created", new_current_incident.to_dict())
@@ -134,14 +145,11 @@ def add_current_incident(current_user):
 
         # send notification after commit, outside the callback
         if result[1] == 200:
-            send_incident_notification.delay(
-                incident_id=new_current_incident.current_incident_id,
-                event="أزمة جديدة",
-                body=f"تم تعيينك مديراً لازمة {new_current_incident.current_incident_description}",
-                data={
-                    "incident_id": str(new_current_incident.current_incident_id),
-                    "type": "incident_created"
-                }
+
+            socketio.start_background_task(
+                dispatch_notification,
+                new_current_incident.current_incident_id,
+                new_current_incident.current_incident_description
             )
         return result
 

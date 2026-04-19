@@ -155,45 +155,45 @@ def send_to_group(incident_id, title, body, data=None):
 # Should respond with:
 # SERVICE_RUNNING
 # SERVICE_RUNNING
-@celery.task(bind=True)
-def send_incident_notification(self, incident_id, event, body, data=None):
-    print("TASK STARTED")
-
-    try:
-        response = send_to_group(
-            incident_id,
-            f"🚨 {event}",
-            body,
-            data=data or {}
-        )
-
-        print("TASK SUCCESS, FCM ID:", response)
-
-    except Exception as e:
-        print("TASK FAILED:", str(e))
-        countdown = 2 ** self.request.retries
-        raise self.retry(exc=e, countdown=countdown)
 
 
-@celery.task(bind=True, max_retries=5)
-def process_incident_task(self, row):
-    """
-    Processes ONE incident.
 
-    Features:
-    - retry on failure
-    - isolated execution
-    """
-    try:
-        # insert cms incident
-        pass
-    except Exception as e:
-        # retry using Celery built-in system
-        raise self.retry(exc=e, countdown=10)
+# @celery.task(bind=True)
+# def send_incident_notification(self, incident_id, event, body, data=None):
+#     print("TASK STARTED")
+#
+#     try:
+#         response = send_to_group(
+#             incident_id,
+#             f"🚨 {event}",
+#             body,
+#             data=data or {}
+#         )
+#
+#         print("TASK SUCCESS, FCM ID:", response)
+#
+#     except Exception as e:
+#         print("TASK FAILED:", str(e))
+#         countdown = 2 ** self.request.retries
+#         raise self.retry(exc=e, countdown=countdown)
 
-
-@celery.task
-def fetch_new_rows_task():
-    rows = []
-    for row in rows:
-        process_incident_task.delay(row)
+def dispatch_notification(incident_id, description, retries=3):
+    for attempt in range(retries):
+        try:
+            send_to_group(
+                incident_id=incident_id,
+                title="🚨 أزمة جديدة",
+                body=f"تم تعيينك مديراً لازمة {description}",
+                data={
+                    "incident_id": str(incident_id),
+                    "type": "incident_created"
+                }
+            )
+            print("🔔 Notification sent")
+            return  # success, stop retrying
+        except Exception as e:
+            print(f"⚠️ Attempt {attempt + 1} failed: {e}")
+            if attempt < retries - 1:
+                import time
+                time.sleep(2 ** attempt)  # 1s, 2s backoff
+    print("❌ All notification attempts failed")
