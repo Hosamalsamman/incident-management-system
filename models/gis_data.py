@@ -59,7 +59,7 @@ class Valve(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
-            "valve_type": self.valve_type.name_en if self.valve_type else None,
+            # "valve_type": self.valve_type.name_en if self.valve_type else None,
             "valve_type_id": self.valve_type_id,
             "valve_type": self.valve_type.to_dict(),
             "position": self.position,

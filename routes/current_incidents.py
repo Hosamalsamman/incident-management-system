@@ -157,9 +157,15 @@ def add_current_incident(current_user):
 
 
 @current_incident_bp.route("/edit-current-incident/<current_incident_id>", methods=["GET","POST"])
-def edit_current_incident(current_incident_id):
+@private_route_for_auth_level(0)
+def edit_current_incident(current_incident_id, current_user):
     current_incident = CurrentIncident.query.get(current_incident_id)
+
+    if current_incident.manager_id != current_user.user_id:
+        return jsonify({"error": "هذه الصلاحية مسموحة لمدير الأزمة فقط"}), 401
+
     if request.method == "POST":
+
         data = request.get_json()
         print(data)
         should_log_history = False
@@ -168,16 +174,16 @@ def edit_current_incident(current_incident_id):
         current_incident.current_incident_description = data["current_incident_description"]
         current_incident.current_incident_x_axis = data["current_incident_x_axis"]
         current_incident.current_incident_y_axis = data["current_incident_y_axis"]
-        # TODO: replace 1 with current user
+        # replace 1 with current user
         if current_incident.current_incident_severity != data["current_incident_severity"]:
             current_incident.current_incident_severity = data["current_incident_severity"]
-            current_incident.current_incident_severity_updated_by = 1
+            current_incident.current_incident_severity_updated_by = current_user.user_id
             current_incident.current_incident_severity_updated_at = now
             should_log_history = True
 
         if current_incident.current_incident_status != data["current_incident_status"]:
             current_incident.current_incident_status = data["current_incident_status"]
-            current_incident.current_incident_status_updated_by = 1
+            current_incident.current_incident_status_updated_by = current_user.user_id
             current_incident.current_incident_status_updated_at = now
             should_log_history = True
 
@@ -202,7 +208,8 @@ def edit_current_incident(current_incident_id):
 
 
 @current_incident_bp.route("/edit-current-mission/<current_incident_id>/<current_mission_id>/<mission_order>", methods=["GET","POST"])
-def edit_current_mission(current_incident_id, current_mission_id, mission_order):
+@private_route_for_auth_level(0)
+def edit_current_mission(current_incident_id, current_mission_id, mission_order, current_user):
     current_mission = (
         CurrentIncidentMission.query
         .filter_by(
@@ -215,22 +222,27 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order)
     if not current_mission:
         return jsonify({"error": "المهمة غير موجودة"}), 404
 
+    current_mission_user_ids = [emp.current_incident_mission_emp for emp in current_mission.assigned_employees]
+    if ((current_user.user_id not in current_mission_user_ids)
+            or (current_user.user_id != current_mission.incident.manager_id)):
+        return jsonify({"error": "هذا الإجراء خاص بمدير الأزمة والموظفين المختصين بهذه المهمة"}), 401
+
     if request.method == "POST":
         data = request.get_json()
         now = datetime.now()
         old_status = current_mission.current_incident_mission_status
 
-        #TODO: add current user instead of 1
+        # add current user instead of 1
         if old_status == data["current_incident_mission_status"]:
             return jsonify({"error": "لم يتم تغيير الحالة"}), 400
         current_mission.current_incident_mission_status = data["current_incident_mission_status"]
-        current_mission.current_incident_mission_status_updated_by = 1
+        current_mission.current_incident_mission_status_updated_by = current_user.user_id
         current_mission.current_incident_mission_status_updated_at = now
 
         new_mission_hist = CurrentIncidentMissionStatusHistory(
             current_incident_mission_id=current_mission.id,
             current_incident_mission_status=current_mission.current_incident_mission_status,
-            current_incident_mission_status_updated_by=current_mission.current_incident_mission_status_updated_by,
+            current_incident_mission_status_updated_by=current_user.user_id,
             current_incident_mission_status_updated_at=now,
         )
         db.session.add(new_mission_hist)
@@ -244,13 +256,14 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order)
 
 
 @current_incident_bp.route("/upload-incident-photo/<int:incident_id>", methods=["POST"])
-def upload_incident_photo(incident_id):
+@private_route_for_auth_level(0)
+def upload_incident_photo(incident_id, current_user):
     if request.method == "POST":
         current_incident = CurrentIncident.query.get_or_404(incident_id)
         file = request.files.get("photo")
         description = request.form.get("description")
-        # TODO: Add user_id from session
-        user_id = 1
+        # Add user_id from session
+        user_id = current_user.user_id
 
         if not file:
             return {"error": "لا يوجد صور، لم يتم الحفظ"}, 400
@@ -290,7 +303,8 @@ def upload_incident_photo(incident_id):
 
 
 @current_incident_bp.route("/incident-photos/<int:incident_id>", methods=["GET"])
-def get_incident_photos(incident_id):
+@private_route_for_auth_level(0)
+def get_incident_photos(incident_id, current_user):
 
     photos = CurrentIncidentPhoto.query.filter_by(
         current_incident_id=incident_id
@@ -301,6 +315,7 @@ def get_incident_photos(incident_id):
 
 
 @current_incident_bp.route("/view-incident-photo/<int:photo_id>")
+@private_route_for_auth_level(0)
 def view_incident_photo(photo_id):
 
     photo = CurrentIncidentPhoto.query.get_or_404(photo_id)
@@ -311,13 +326,16 @@ def view_incident_photo(photo_id):
 
 
 @current_incident_bp.route("/mission-user-assign/<int:current_incident_id>", methods=["GET", "POST"])
-def mission_user_assign(current_incident_id):
+@private_route_for_auth_level(0)
+def mission_user_assign(current_incident_id, current_user):
     users = User.query.filter(User.is_active == True).all()
     users_list = [user.to_dict() for user in users]
     incident = CurrentIncident.query.get_or_404(current_incident_id)
-    # TODO: validate that current user is the current incident manager
-    # if incident.manager_id != current_user.user_id:
-    # return you are not the manager
+
+    # validate that current user is the current incident manager
+    if incident.manager_id != current_user.user_id:
+        return jsonify({"error": "هذا الإجراء مسموح به لمدير الأزمة"}), 401
+
     if incident.current_incident_status > 5:
         return jsonify({"error": "لا يمكن تعيين موظفين لازمة مغلقة"}), 400
     if request.method == "POST":

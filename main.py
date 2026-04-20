@@ -17,11 +17,11 @@ def listen_to_temp_inserts():
     from routes.current_incidents import assign_incident_manager
 
     with app.app_context():
-        print("Starting DB Listener Background Task...")
+        # print("Starting DB Listener Background Task...")
         iteration = 0
         while True:
             iteration += 1
-            print(f"🔄 Loop iteration {iteration}")
+            # print(f"🔄 Loop iteration {iteration}")
             try:
                 # Query for a new incident
                 temp_incident = CurrentIncidentTemp.query.filter(
@@ -100,12 +100,12 @@ def listen_to_temp_inserts():
 
                         # --- Post-Commit Actions (Notifications) ---
                         try:
-                            print("📡 About to emit incident_created...")
+                            # print("📡 About to emit incident_created...")
                             incident_dict = new_current_incident.to_dict()
                             socketio.start_background_task(lambda d=incident_dict: socketio.emit("incident_created", d))
-                            print("📡 Emit done")
+                            # print("📡 Emit done")
 
-                            print("🔔 Getting device tokens...")
+                            # print("🔔 Getting device tokens...")
                             device_tokens = [tok.token for tok in manager.tokens if tok.token]
                             print(f"🔔 Found {len(device_tokens)} tokens")
                             if device_tokens:
@@ -113,9 +113,9 @@ def listen_to_temp_inserts():
                                     device_tokens,
                                     f"Team_incident_{new_current_incident.current_incident_id}"
                                 )
-                                print("🔔 Tokens added to group")
+                                # print("🔔 Tokens added to group")
 
-                            print("🔔 Sending notification...")
+                            # print("🔔 Sending notification...")
 
                             socketio.start_background_task(
                                 dispatch_notification,
@@ -144,7 +144,7 @@ def listen_to_temp_inserts():
 
                 else:
                     # No incidents found, wait longer
-                    print(f"😴 No incidents, sleeping...")
+                    # print(f"😴 No incidents, sleeping...")
                     socketio.sleep(5)
 
             except Exception as outer_err:
@@ -164,10 +164,10 @@ def listen_to_temp_inserts():
                 # This prevents connection pool exhaustion
                 try:
                     db.session.remove()
-                    print(f"🔁 Bottom of loop, iteration {iteration} complete")  # ← add this OUTSIDE finally
+                    # print(f"🔁 Bottom of loop, iteration {iteration} complete")  # ← add this OUTSIDE finally
                 except:
                     pass
-            print(f"🔁 Bottom of loop, iteration {iteration} complete")
+            # print(f"🔁 Bottom of loop, iteration {iteration} complete")
 
 
 @app.route('/')

@@ -1,15 +1,15 @@
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError, DataError
-
+# from sqlalchemy.exc import IntegrityError, SQLAlchemyError, DataError
 from models.incident_base_models import IncidentType, Classification, Mission, IncidentTypeMission
 from flask import Blueprint, jsonify, request
 from extensions import db
-from routes.common import commit_trial
+from routes.common import commit_trial, private_route_for_auth_level
 
 incident_base_bp = Blueprint("incident_base", __name__)
 
 
 @incident_base_bp.route("/all-incident-types")
-def all_incident_types():
+@private_route_for_auth_level(0)
+def all_incident_types(current_user):
     incident_types = IncidentType.query.all()
     incident_types_list = [i_type.to_dict() for i_type in incident_types]
     # print(incident_types_list)
@@ -17,7 +17,8 @@ def all_incident_types():
 
 
 @incident_base_bp.route("/edit-incident-type/<type_id>", methods=["GET", "POST"])
-def edit_incident_type(type_id):
+@private_route_for_auth_level(0)
+def edit_incident_type(type_id, current_user):
     incident_type = IncidentType.query.get(type_id)
     classes = db.session.query(Classification).all()
     classes_list = [c.to_dict() for c in classes]
@@ -30,7 +31,8 @@ def edit_incident_type(type_id):
 
 
 @incident_base_bp.route("/add-incident-type", methods=["GET", "POST"])
-def add_incident_type():
+@private_route_for_auth_level(0)
+def add_incident_type(current_user):
     classes = db.session.query(Classification).all()
     classes_list = [c.to_dict() for c in classes]
     if request.method == "POST":
@@ -46,14 +48,16 @@ def add_incident_type():
 
 
 @incident_base_bp.route("/all-missions")
-def all_missions():
+@private_route_for_auth_level(0)
+def all_missions(current_user):
     missions = Mission.query.all()
     missions_list = [mission.to_dict() for mission in missions]
     return jsonify(missions_list)
 
 
 @incident_base_bp.route("/edit-mission/<mission_id>", methods=["GET", "POST"])
-def edit_mission(mission_id):
+@private_route_for_auth_level(0)
+def edit_mission(mission_id, current_user):
     current_mission = Mission.query.get(mission_id)
     classes = Classification.query.all()
     c_list = [c.to_dict() for c in classes]
@@ -67,7 +71,8 @@ def edit_mission(mission_id):
 
 
 @incident_base_bp.route("/new-mission", methods=["GET", "POST"])
-def add_new_mission():
+@private_route_for_auth_level(0)
+def add_new_mission(current_user):
     classes = Classification.query.all()
     classes_list = [c.to_dict() for c in classes]
     if request.method == "POST":
@@ -83,14 +88,16 @@ def add_new_mission():
 
 
 @incident_base_bp.route("/incident-type-missions")
-def get_incident_type_missions():
+@private_route_for_auth_level(0)
+def get_incident_type_missions(current_user):
     incident_missions = IncidentTypeMission.query.all()
     i_m_list = [i_m.to_dict() for i_m in incident_missions]
     return jsonify(i_m_list)
 
 
 @incident_base_bp.route("/edit-incident-type-mission/<incident_id>/<mission_id>", methods=["GET", "POST"])
-def edit_incident_type_mission(incident_id, mission_id):
+@private_route_for_auth_level(0)
+def edit_incident_type_mission(incident_id, mission_id, current_user):
     incident_mission = IncidentTypeMission.query.get(incident_id, mission_id)
     if request.method == "POST":
         data = request.get_json()
@@ -103,7 +110,8 @@ def edit_incident_type_mission(incident_id, mission_id):
 
 
 @incident_base_bp.route("/assign-incident-type-missions", methods=["GET", "POST"])
-def add_new_incident_type_mission():
+@private_route_for_auth_level(0)
+def add_new_incident_type_mission(current_user):
     incident_types = IncidentTypeMission.query.all()
     missions = Mission.query.all()
     classes = Classification.query.all()

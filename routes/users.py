@@ -5,20 +5,22 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db
 from models import User, SectorManagement, Group, AuthorityLevel
 from models.users_and_authentication import UserToken
-from routes.common import commit_trial, private_route_for_auth_level
+from routes.common import commit_trial, private_route_for_auth_level, private_route_for_groups
 
 users_bp = Blueprint("users_authentication", __name__)
 
 
 @users_bp.route("/all-active-users")
-def active_users():
+@private_route_for_auth_level(0)
+def active_users(current_user):
     users = User.query.filter(User.is_active == True).all()
     users_list = [user.to_dict() for user in users]
     return jsonify(users_list)
 
 
 @users_bp.route("/register", methods=["GET", "POST"])
-def register():
+@private_route_for_groups([3])
+def register(current_user):
     sectors = SectorManagement.query.all()
     sectors_list = [sector.to_dict() for sector in sectors]
     groups = Group.query.all()
@@ -61,6 +63,51 @@ def register():
 
         db.session.add(new_user)
         return commit_trial("تم تسجيل الموظف بنجاح")
+
+    return jsonify(sectors=sectors_list, groups=groups_list, auth_levels=a_l_list)
+
+
+@users_bp.route("/edit-user/<user_id>", methods=["GET", "POST"])
+@private_route_for_groups([3])
+def edit_user(user_id, current_user):
+    sectors = SectorManagement.query.all()
+    sectors_list = [sector.to_dict() for sector in sectors]
+    groups = Group.query.all()
+    groups_list = [group.to_dict() for group in groups]
+    auth_levels = AuthorityLevel.query.all()
+    a_l_list = [a_l.to_dict() for a_l in auth_levels]
+    user_to_edit = User.query.get(user_id)
+
+    if request.method == "POST":
+        data = request.get_json()
+        demanded_sector = SectorManagement.query.get(data['sector_management_id'])
+        if data["authority_level_id"] > demanded_sector.authority_level_id:
+            return jsonify({
+                               "error": f"لا يمكن تسجيل موظف بمستوى صلاحية أعلى من {demanded_sector.authority_level_id} لهذه الإدارة"}), 400
+        elif data["authority_level_id"] == demanded_sector.authority_level_id:
+            existing_manager = User.query.filter_by(
+                sector_management_id=demanded_sector.id,
+                authority_level_id=demanded_sector.authority_level_id,
+                is_active=True
+            ).first()
+
+            if existing_manager:
+                return jsonify({"error": "يوجد مدير حالي لهذه الإدارة"}), 400
+
+        user_to_edit.emp_code = data["emp_code"]
+        user_to_edit.emp_name = data["emp_name"]
+        user_to_edit.sector_management_id = data["sector_management_id"]
+        user_to_edit.group_id = data["group_id"]
+        user_to_edit.authority_level_id = data["authority_level_id"]
+        user_to_edit.is_active = data["is_active"]
+        if data["reset_password"]:
+            user_to_edit.userpassword = generate_password_hash(
+                '0000',
+                method='pbkdf2:sha256',
+                salt_length=16
+            )
+
+        return commit_trial("تم تعديل البيانات بنجاح")
 
     return jsonify(sectors=sectors_list, groups=groups_list, auth_levels=a_l_list)
 

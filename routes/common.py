@@ -2,12 +2,11 @@ import os
 from functools import wraps
 from sqlalchemy.exc import IntegrityError, DataError, SQLAlchemyError
 from flask import jsonify, request, g, session as flask_session
-from extensions import db, celery
-from flask_socketio import SocketIO
+from extensions import db
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from firebase_admin import messaging
 from models import User
-from celery import shared_task
+# from celery import shared_task
 
 
 def commit_trial(success_response, on_success=None):
