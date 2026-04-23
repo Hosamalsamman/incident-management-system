@@ -145,11 +145,13 @@ def add_current_incident(current_user):
 
         # send notification after commit, outside the callback
         if result[1] == 200:
-
             socketio.start_background_task(
-                dispatch_notification,
-                new_current_incident.current_incident_id,
-                new_current_incident.current_incident_description
+                lambda: dispatch_notification(
+                    topic=f"Team_incident_{new_current_incident.current_incident_id}",
+                    title="🚨 أزمة جديدة",
+                    body=f"تم تعيينك مديراً لازمة {new_current_incident.current_incident_description}",
+                    data={"incident_id": str(new_current_incident.current_incident_id), "type": "incident_created"}
+                )
             )
         return result
 
@@ -160,7 +162,8 @@ def add_current_incident(current_user):
 @private_route_for_auth_level(0)
 def edit_current_incident(current_incident_id, current_user):
     current_incident = CurrentIncident.query.get(current_incident_id)
-
+    print(current_incident.manager_id)
+    print(current_user.user_id)
     if current_incident.manager_id != current_user.user_id:
         return jsonify({"error": "هذه الصلاحية مسموحة لمدير الأزمة فقط"}), 401
 
@@ -256,14 +259,14 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order,
 
 
 @current_incident_bp.route("/upload-incident-photo/<int:incident_id>", methods=["POST"])
-@private_route_for_auth_level(0)
-def upload_incident_photo(incident_id, current_user):
+# @private_route_for_auth_level(0)
+def upload_incident_photo(incident_id):
     if request.method == "POST":
         current_incident = CurrentIncident.query.get_or_404(incident_id)
         file = request.files.get("photo")
         description = request.form.get("description")
         # Add user_id from session
-        user_id = current_user.user_id
+        user_id = 1
 
         if not file:
             return {"error": "لا يوجد صور، لم يتم الحفظ"}, 400
@@ -303,8 +306,8 @@ def upload_incident_photo(incident_id, current_user):
 
 
 @current_incident_bp.route("/incident-photos/<int:incident_id>", methods=["GET"])
-@private_route_for_auth_level(0)
-def get_incident_photos(incident_id, current_user):
+# @private_route_for_auth_level(0)
+def get_incident_photos(incident_id):
 
     photos = CurrentIncidentPhoto.query.filter_by(
         current_incident_id=incident_id
@@ -315,7 +318,7 @@ def get_incident_photos(incident_id, current_user):
 
 
 @current_incident_bp.route("/view-incident-photo/<int:photo_id>")
-@private_route_for_auth_level(0)
+# @private_route_for_auth_level(0)
 def view_incident_photo(photo_id):
 
     photo = CurrentIncidentPhoto.query.get_or_404(photo_id)

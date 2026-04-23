@@ -114,14 +114,14 @@ def add_tokens_to_group(tokens, group_name):
 
 
 
-def send_to_group(incident_id, title, body, data=None):
+def send_to_group(topic, title, body, data=None):
     message = messaging.Message(
         notification=messaging.Notification(
             title=title,
             body=body,
         ),
         data=data or {},
-        topic=f"Team_incident_{incident_id}",
+        topic=topic,
     )
     response = messaging.send(message)  # returns message_id string
     print("Message sent successfully, ID:", response)
@@ -176,23 +176,20 @@ def send_to_group(incident_id, title, body, data=None):
 #         countdown = 2 ** self.request.retries
 #         raise self.retry(exc=e, countdown=countdown)
 
-def dispatch_notification(incident_id, description, retries=3):
+def dispatch_notification(topic, title, body, data=None, retries=3):
     for attempt in range(retries):
         try:
             send_to_group(
-                incident_id=incident_id,
-                title="🚨 أزمة جديدة",
-                body=f"تم تعيينك مديراً لازمة {description}",
-                data={
-                    "incident_id": str(incident_id),
-                    "type": "incident_created"
-                }
+                topic=topic,
+                title=title,
+                body=body,
+                data=data or {}
             )
-            print("🔔 Notification sent")
-            return  # success, stop retrying
+            print(f"🔔 Notification sent: {title}")
+            return
         except Exception as e:
             print(f"⚠️ Attempt {attempt + 1} failed: {e}")
             if attempt < retries - 1:
                 import time
-                time.sleep(2 ** attempt)  # 1s, 2s backoff
-    print("❌ All notification attempts failed")
+                time.sleep(2 ** attempt)
+    print(f"❌ All notification attempts failed for topic {topic}")

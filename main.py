@@ -2,6 +2,7 @@ from flask import jsonify
 from routes import create_app
 from extensions import socketio
 from routes.common import send_to_group, dispatch_notification
+from waitress import serve
 
 app = create_app()
 
@@ -118,9 +119,13 @@ def listen_to_temp_inserts():
                             # print("🔔 Sending notification...")
 
                             socketio.start_background_task(
-                                dispatch_notification,
-                                new_current_incident.current_incident_id,
-                                new_current_incident.current_incident_description
+                                lambda: dispatch_notification(
+                                    topic=f"Team_incident_{new_current_incident.current_incident_id}",
+                                    title="🚨 أزمة جديدة",
+                                    body=f"تم تعيينك مديراً لازمة {new_current_incident.current_incident_description}",
+                                    data={"incident_id": str(new_current_incident.current_incident_id),
+                                          "type": "incident_created"}
+                                )
                             )
                             print("🔔 Notification dispatched")
 
