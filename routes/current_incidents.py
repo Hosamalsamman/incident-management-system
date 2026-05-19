@@ -225,14 +225,18 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order,
     if not current_mission:
         return jsonify({"error": "المهمة غير موجودة"}), 404
 
-    current_mission_user_ids = [emp.current_incident_mission_emp for emp in current_mission.assigned_employees]
-    if ((current_user.user_id not in current_mission_user_ids)
-            or (current_user.user_id != current_mission.incident.manager_id)):
-        return jsonify({"error": "هذا الإجراء خاص بمدير الأزمة والموظفين المختصين بهذه المهمة"}), 401
+
 
     if request.method == "POST":
         data = request.get_json()
         now = datetime.now()
+        print(current_user.user_id)
+        print(current_mission.incident.manager_id)
+        print(current_user.user_id != current_mission.incident.manager_id)
+        current_mission_user_ids = [emp.current_incident_mission_emp for emp in current_mission.assigned_employees]
+        if ((current_user.user_id not in current_mission_user_ids)
+                and (current_user.user_id != current_mission.incident.manager_id)):
+            return jsonify({"error": "هذا الإجراء خاص بمدير الأزمة والموظفين المختصين بهذه المهمة"}), 401
         old_status = current_mission.current_incident_mission_status
 
         # add current user instead of 1
@@ -259,14 +263,15 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order,
 
 
 @current_incident_bp.route("/upload-incident-photo/<int:incident_id>", methods=["POST"])
-# @private_route_for_auth_level(0)
-def upload_incident_photo(incident_id):
+@private_route_for_auth_level(0)
+def upload_incident_photo(incident_id, current_user):
     if request.method == "POST":
         current_incident = CurrentIncident.query.get_or_404(incident_id)
         file = request.files.get("photo")
         description = request.form.get("description")
         # Add user_id from session
-        user_id = 1
+        print(current_user.user_id)
+        user_id = current_user.user_id
 
         if not file:
             return {"error": "لا يوجد صور، لم يتم الحفظ"}, 400

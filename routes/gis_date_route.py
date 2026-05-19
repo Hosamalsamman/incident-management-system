@@ -16,7 +16,7 @@ def get_all_valves(current_user):
         .filter(
             SectorBranch.sector_management_id == current_user.sector_management_id
         )
-        .limit(10)
+        # .limit(10)
         .all()
     )
     print(len(valves))
