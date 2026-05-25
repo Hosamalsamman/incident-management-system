@@ -13,6 +13,11 @@ class CurrentIncident(db.Model):
         nullable=False
     )
 
+    address = db.Column(
+        db.String(4000),
+        nullable=True
+    )
+
     current_incident_type_id = db.Column(
         db.Integer,
         db.ForeignKey('incident_types.incident_type_id'),

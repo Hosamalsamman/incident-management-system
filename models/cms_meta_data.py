@@ -10,6 +10,7 @@ class CurrentIncidentTemp(db.Model):
     cms_case_id = db.Column(db.Integer, primary_key=True)
 
     current_incident_description = db.Column(NVARCHAR(None), nullable=False)
+    address = db.Column(NVARCHAR(None), nullable=True)
     branch_id = db.Column(db.Integer, nullable=False)
     current_incident_type_id = db.Column(db.Integer, nullable=False)
 

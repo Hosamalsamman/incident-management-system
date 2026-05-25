@@ -10,8 +10,7 @@ from models.current_incident_models import CurrentIncident, IncidentSeverity, Cu
 from models.incident_base_models import IncidentType, IncidentTypeMission
 from models.sectors import Branch, SectorManagement, SectorBranch, SectorClassification
 from datetime import datetime
-from routes.common import commit_trial, add_tokens_to_group, private_route_for_auth_level, \
-    send_to_group, dispatch_notification
+from routes.common import commit_trial, private_route_for_auth_level, dispatch_notification
 
 
 def assign_incident_manager(incident):
@@ -66,6 +65,7 @@ def add_current_incident(current_user):
         now = datetime.now()
         new_current_incident = CurrentIncident(
             current_incident_description=data["current_incident_description"],
+            address=data["address"],
             current_incident_type_id=data["current_incident_type_id"],
             current_incident_created_by=current_user.user_id,
             current_incident_created_at=now,
@@ -134,20 +134,21 @@ def add_current_incident(current_user):
 
         def after_commit():
             socketio.emit("incident_created", new_current_incident.to_dict())
-            device_tokens = [tok.token for tok in manager.tokens if tok.token]
-            if device_tokens:
-                # print("there are tokens")
-                add_tokens_to_group(
-                    device_tokens,
-                    f"Team_incident_{new_current_incident.current_incident_id}")
+            # device_tokens = [tok.token for tok in manager.tokens if tok.token]
+            # if device_tokens:
+            #     # print("there are tokens")
+            #     add_tokens_to_group(
+            #         device_tokens,
+            #         f"Team_incident_{new_current_incident.current_incident_id}")
 
         result = commit_trial("تم إضافة الأزمة بنجاح", on_success=after_commit)
 
         # send notification after commit, outside the callback
         if result[1] == 200:
+            device_tokens = [tok.token for tok in manager.tokens if tok.token]
             socketio.start_background_task(
                 lambda: dispatch_notification(
-                    topic=f"Team_incident_{new_current_incident.current_incident_id}",
+                    tokens=device_tokens,
                     title="🚨 أزمة جديدة",
                     body=f"تم تعيينك مديراً لازمة {new_current_incident.current_incident_description}",
                     data={"incident_id": str(new_current_incident.current_incident_id), "type": "incident_created"}
@@ -175,6 +176,7 @@ def edit_current_incident(current_incident_id, current_user):
         now = datetime.now()
 
         current_incident.current_incident_description = data["current_incident_description"]
+        current_incident.address = data["address"]
         current_incident.current_incident_x_axis = data["current_incident_x_axis"]
         current_incident.current_incident_y_axis = data["current_incident_y_axis"]
         # replace 1 with current user
@@ -229,13 +231,15 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order,
 
     if request.method == "POST":
         data = request.get_json()
-        now = datetime.now()
-        print(current_user.user_id)
-        print(current_mission.incident.manager_id)
-        print(current_user.user_id != current_mission.incident.manager_id)
+        print(data)
+        now = datetime.fromisoformat(data["current_incident_mission_status_updated_at"])
+        # print(current_user.user_id)
+        # print(current_mission.incident.manager_id)
+        # print(current_user.user_id != current_mission.incident.manager_id)
         current_mission_user_ids = [emp.current_incident_mission_emp for emp in current_mission.assigned_employees]
         if ((current_user.user_id not in current_mission_user_ids)
                 and (current_user.user_id != current_mission.incident.manager_id)):
+            # print("manager 401")
             return jsonify({"error": "هذا الإجراء خاص بمدير الأزمة والموظفين المختصين بهذه المهمة"}), 401
         old_status = current_mission.current_incident_mission_status
 
@@ -311,8 +315,8 @@ def upload_incident_photo(incident_id, current_user):
 
 
 @current_incident_bp.route("/incident-photos/<int:incident_id>", methods=["GET"])
-# @private_route_for_auth_level(0)
-def get_incident_photos(incident_id):
+@private_route_for_auth_level(0)
+def get_incident_photos(incident_id, current_user):
 
     photos = CurrentIncidentPhoto.query.filter_by(
         current_incident_id=incident_id
@@ -323,8 +327,8 @@ def get_incident_photos(incident_id):
 
 
 @current_incident_bp.route("/view-incident-photo/<int:photo_id>")
-# @private_route_for_auth_level(0)
-def view_incident_photo(photo_id):
+@private_route_for_auth_level(0)
+def view_incident_photo(photo_id, current_user):
 
     photo = CurrentIncidentPhoto.query.get_or_404(photo_id)
 
@@ -351,8 +355,7 @@ def mission_user_assign(current_incident_id, current_user):
         now = datetime.now()
         print(data)
 
-        db.session.add_all(
-            [
+        curr_inc_mission_emp = [
                 CurrentIncidentMissionEmployee(
                     current_incident_mission_id=obj["mission_id"],
                     current_incident_mission_emp=obj["user_id"],
@@ -361,18 +364,45 @@ def mission_user_assign(current_incident_id, current_user):
                 )
                 for obj in data
             ]
-        )
+
+        db.session.add_all(curr_inc_mission_emp)
         mission_ids = {obj["mission_id"] for obj in data}
         for mission in incident.missions:
             if mission.id in mission_ids:
                 mission.current_incident_mission_status = 2 # assigned
                 mission.current_incident_mission_status_updated_by = incident.manager_id
                 mission.current_incident_mission_status_updated_at = now
-        # TOTHINK: should user accept multiple missions?
+
 
         def emit_update():
             socketio.emit("incident_updated", incident.to_dict())
-        return commit_trial("تم تعيين الموظفين بنجاح", on_success=emit_update)
+        result_ = commit_trial("تم تعيين الموظفين بنجاح", on_success=emit_update)
+        if result_[1] == 200:
+            notification_dict = {}
+            for single_obj in curr_inc_mission_emp:
+                mission_name = single_obj.mission.mission.mission_name
+                tokens_obj = [tok for tok in single_obj.employee.tokens]
+                actual_tokens = [tok.token for tok in tokens_obj]
+                notification_dict.setdefault(mission_name, [])
+                notification_dict[mission_name] += actual_tokens
+
+            def send_all_notifications(notification_dict, manager_name, incident_name, incident_id):
+                for mission_name, tokens in notification_dict.items():
+                    dispatch_notification(
+                        tokens=tokens,
+                        title="مهمة جديدة لك",
+                        body=f"تم تعيينك في مهمة {mission_name} بواسطة {manager_name} في أزمة {incident_name}",
+                        data={"incident_id": str(incident_id), "type": "mission_assigned"}
+                    )
+
+            socketio.start_background_task(
+                send_all_notifications,
+                notification_dict,
+                incident.manager.username,
+                incident.incident_type.incident_type_name,
+                incident.current_incident_id
+            )
+        return result_
     return jsonify({"response": "لا حول ولا قوة إلا بالله العلي العظيم"})
 
 

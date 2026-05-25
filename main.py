@@ -1,11 +1,11 @@
 from flask import jsonify
-from routes import create_app
+
 from extensions import socketio
-from routes.common import send_to_group, dispatch_notification
-from waitress import serve
+from routes import create_app
+from routes.common import dispatch_notification
+from extensions import app
 
-app = create_app()
-
+create_app()
 
 def listen_to_temp_inserts():
     from datetime import datetime
@@ -14,24 +14,20 @@ def listen_to_temp_inserts():
     from models.current_incident_models import CurrentIncident, CurrentIncidentMission, CurrentIncidentManager, \
         CurrentIncidentStatusSeverityHistory
     from models.incident_base_models import IncidentTypeMission
-    from routes.common import add_tokens_to_group, commit_trial
+    from routes.common import commit_trial, dispatch_notification
     from routes.current_incidents import assign_incident_manager
 
-    with app.app_context():
-        # print("Starting DB Listener Background Task...")
-        iteration = 0
-        while True:
-            iteration += 1
-            # print(f"🔄 Loop iteration {iteration}")
-            try:
-                # Query for a new incident
+    iteration = 0
+    while True:
+        iteration += 1
+        try:
+            with app.app_context():  # ← fresh context every iteration
                 temp_incident = CurrentIncidentTemp.query.filter(
                     CurrentIncidentTemp.processed == False
                 ).first()
 
                 if temp_incident:
                     print(f"📥 Found incident {temp_incident.cms_case_id}, processing...")
-                    # Mark as in-progress so it won't be picked up again
                     temp_incident.processed = None
                     db.session.commit()
 
@@ -39,6 +35,7 @@ def listen_to_temp_inserts():
                         now = datetime.now()
                         new_current_incident = CurrentIncident(
                             current_incident_description=temp_incident.current_incident_description,
+                            address=temp_incident.address,
                             current_incident_type_id=temp_incident.current_incident_type_id,
                             current_incident_created_by=1,
                             current_incident_created_at=temp_incident.current_incident_created_at,
@@ -93,86 +90,51 @@ def listen_to_temp_inserts():
                             current_incident_severity_changed_at=now
                         ))
 
-                        # Mark as processed successfully
                         temp_incident.processed = True
                         db.session.commit()
-
                         print(f"✅ Incident {new_current_incident.current_incident_id} committed successfully")
 
-                        # --- Post-Commit Actions (Notifications) ---
-                        try:
-                            # print("📡 About to emit incident_created...")
-                            incident_dict = new_current_incident.to_dict()
-                            socketio.start_background_task(lambda d=incident_dict: socketio.emit("incident_created", d))
-                            # print("📡 Emit done")
-
-                            # print("🔔 Getting device tokens...")
-                            device_tokens = [tok.token for tok in manager.tokens if tok.token]
-                            print(f"🔔 Found {len(device_tokens)} tokens")
-                            if device_tokens:
-                                add_tokens_to_group(
-                                    device_tokens,
-                                    f"Team_incident_{new_current_incident.current_incident_id}"
-                                )
-                                # print("🔔 Tokens added to group")
-
-                            # print("🔔 Sending notification...")
-
-                            socketio.start_background_task(
-                                lambda: dispatch_notification(
-                                    topic=f"Team_incident_{new_current_incident.current_incident_id}",
-                                    title="🚨 أزمة جديدة",
-                                    body=f"تم تعيينك مديراً لازمة {new_current_incident.current_incident_description}",
-                                    data={"incident_id": str(new_current_incident.current_incident_id),
-                                          "type": "incident_created"}
-                                )
-                            )
-                            print("🔔 Notification dispatched")
-
-                        except Exception as notify_err:
-                            import traceback
-                            traceback.print_exc()
-                            print(f"⚠️ Notification failed: {notify_err}")
-
-                        print("✔️ Exiting if temp_incident block")
-                        # Small sleep to prevent tight looping (CPU exhaustion) and allow cleanup
-                        # socketio.sleep(3)
+                        # snapshot everything needed before context closes
+                        incident_dict = new_current_incident.to_dict()
+                        device_tokens = [tok.token for tok in manager.tokens if tok.token and tok.token.strip()]
+                        incident_id = str(new_current_incident.current_incident_id)
+                        incident_desc = new_current_incident.current_incident_description
 
                     except Exception as processing_err:
                         import traceback
                         traceback.print_exc()
                         db.session.rollback()
-                        temp_incident.processed = None  # Failed permanently
+                        temp_incident.processed = None
                         db.session.commit()
-                        print(f"❌ Incident processing failed, marked as failed: {processing_err}")
+                        print(f"❌ Incident processing failed: {processing_err}")
                         socketio.sleep(1)
+                        continue  # ← skip notifications, go to next iteration
+
+                    # --- Post-Commit Notifications (outside inner try, inside app_context) ---
+                    try:
+                        socketio.start_background_task(lambda d=incident_dict: socketio.emit("incident_created", d))
+
+                        if device_tokens:
+                            socketio.start_background_task(
+                                dispatch_notification,
+                                device_tokens,
+                                "🚨 أزمة جديدة",
+                                f"تم تعيينك مديراً لازمة {incident_desc}",
+                                {"incident_id": incident_id, "type": "incident_created"}
+                            )
+                        print("🔔 Notification dispatched")
+
+                    except Exception as notify_err:
+                        print(f"⚠️ Notification failed: {notify_err}")
 
                 else:
-                    # No incidents found, wait longer
-                    # print(f"😴 No incidents, sleeping...")
                     socketio.sleep(5)
 
-            except Exception as outer_err:
-                import traceback
-                traceback.print_exc()
-                print(f"💥 Outer error on iteration {iteration}: {outer_err}")
-
-                try:
-                    db.session.rollback()
-                except:
-                    pass
-
-                socketio.sleep(5)
-
-            finally:
-                # CRITICAL: Ensure session is cleaned up at the end of EVERY iteration
-                # This prevents connection pool exhaustion
-                try:
-                    db.session.remove()
-                    # print(f"🔁 Bottom of loop, iteration {iteration} complete")  # ← add this OUTSIDE finally
-                except:
-                    pass
-            # print(f"🔁 Bottom of loop, iteration {iteration} complete")
+        except Exception as outer_err:
+            import traceback
+            traceback.print_exc()
+            print(f"💥 Outer error on iteration {iteration}: {outer_err}")
+            socketio.sleep(5)
 
 
 @app.route('/')

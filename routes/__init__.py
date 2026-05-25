@@ -25,7 +25,7 @@ def register_routes(app):
 
 
 def create_app():
-    app = Flask(__name__)
+    from extensions import app
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DB_URI")
     app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024

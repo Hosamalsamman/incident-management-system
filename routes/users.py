@@ -117,7 +117,7 @@ def login():
 
     if request.method == "POST":
         data = request.get_json()
-        print(data)
+        # print(data)
         user = db.session.query(User).filter(User.username == data['username']).first()
         if not user or not check_password_hash(user.userpassword, data['password']):
             return jsonify({"error": "اسم مستخدم أو كلمة مرور خاطئة"}), 401
@@ -164,6 +164,6 @@ def logout(current_user):
         existing_token = UserToken.query.filter_by(token=data["device_token"]).first()
         if existing_token:
             db.session.delete(existing_token)
-            commit_trial("تم الحذف")
+            commit_trial("تم تسجيل الخروج بنجاح")
         return jsonify({"response": "تم تسجيل الخروج بنجاح"}), 200
     return jsonify({"response": "لا حول ولا قوة إلا بالله"})

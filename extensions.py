@@ -17,6 +17,8 @@ cred = credentials.Certificate("firebase-service-account.json")
 if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
+from flask import Flask
+app = Flask(__name__)
 
 # celery = Celery(
 #     "ims",

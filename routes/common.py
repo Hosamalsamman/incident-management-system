@@ -1,11 +1,16 @@
 import os
 from functools import wraps
 from sqlalchemy.exc import IntegrityError, DataError, SQLAlchemyError
-from flask import jsonify, request, g, session as flask_session
+from flask import jsonify, request, g, session as flask_session, current_app
+
+from extensions import app
 from extensions import db
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 from firebase_admin import messaging
+
 from models import User
+import time
+from models.users_and_authentication import UserToken
 # from celery import shared_task
 
 
@@ -176,20 +181,78 @@ def send_to_group(topic, title, body, data=None):
 #         countdown = 2 ** self.request.retries
 #         raise self.retry(exc=e, countdown=countdown)
 
-def dispatch_notification(topic, title, body, data=None, retries=3):
+# def dispatch_notification(topic, title, body, data=None, retries=3):
+#     for attempt in range(retries):
+#         try:
+#             send_to_group(
+#                 topic=topic,
+#                 title=title,
+#                 body=body,
+#                 data=data or {}
+#             )
+#             print(f"🔔 Notification sent: {title}")
+#             return
+#         except Exception as e:
+#             print(f"⚠️ Attempt {attempt + 1} failed: {e}")
+#             if attempt < retries - 1:
+#                 import time
+#                 time.sleep(2 ** attempt)
+#     print(f"❌ All notification attempts failed for topic {topic}")
+def dispatch_notification(tokens, title, body, data=None, retries=3):
+    """
+    Send notification to a list of device tokens with retry + failed token cleanup.
+    Automatically batches tokens in groups of 500 (FCM multicast limit).
+    """
+    # Sanitize before anything else
+    tokens = [t for t in tokens if t and t.strip()]
+    if not tokens:
+        print("⚠️ No tokens provided, skipping notification")
+        return
+
+    # FCM multicast limit is 500 tokens per request
+    def chunks(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
+    for batch in chunks(tokens, 500):
+        _dispatch_batch(batch, title, body, data or {}, retries)
+
+
+def _dispatch_batch(tokens, title, body, data, retries):
     for attempt in range(retries):
         try:
-            send_to_group(
-                topic=topic,
-                title=title,
-                body=body,
-                data=data or {}
+            message = messaging.MulticastMessage(
+                tokens=tokens,
+                notification=messaging.Notification(title=title, body=body),
+                data=data
             )
-            print(f"🔔 Notification sent: {title}")
+            response = messaging.send_each_for_multicast(message)
+
+            # Clean up failed tokens
+            if response.failure_count > 0:
+                failed_tokens = [
+                    tokens[i]
+                    for i, r in enumerate(response.responses)
+                    if not r.success
+                ]
+                _cleanup_failed_tokens(failed_tokens)
+
+            print(f"🔔 Sent: {response.success_count} success, {response.failure_count} failed")
             return
+
         except Exception as e:
             print(f"⚠️ Attempt {attempt + 1} failed: {e}")
             if attempt < retries - 1:
-                import time
                 time.sleep(2 ** attempt)
-    print(f"❌ All notification attempts failed for topic {topic}")
+
+    print(f"❌ All notification attempts failed for batch of {len(tokens)} tokens")
+
+
+def _cleanup_failed_tokens(failed_tokens):
+    try:
+        with app.app_context():
+            deleted = UserToken.query.filter(UserToken.token.in_(failed_tokens)).delete(synchronize_session=False)
+            db.session.commit()
+            print(f"🗑️ Removed {deleted} invalid tokens from DB")
+    except Exception as e:
+        print(f"⚠️ Failed to cleanup tokens: {e}")
