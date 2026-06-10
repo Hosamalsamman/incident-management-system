@@ -117,7 +117,7 @@ def login():
 
     if request.method == "POST":
         data = request.get_json()
-        # print(data)
+        print(data)
         user = db.session.query(User).filter(User.username == data['username']).first()
         if not user or not check_password_hash(user.userpassword, data['password']):
             return jsonify({"error": "اسم مستخدم أو كلمة مرور خاطئة"}), 401
@@ -143,7 +143,7 @@ def login():
 
 
 @users_bp.route("/change-password", methods=["GET", "POST"])
-@jwt_required()
+@private_route_for_auth_level(0)
 def change_password(current_user):
     if request.method == "POST":
         data = request.get_json()

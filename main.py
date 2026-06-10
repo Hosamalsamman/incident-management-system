@@ -1,8 +1,6 @@
 from flask import jsonify
-
 from extensions import socketio
 from routes import create_app
-from routes.common import dispatch_notification
 from extensions import app
 
 create_app()
@@ -14,7 +12,7 @@ def listen_to_temp_inserts():
     from models.current_incident_models import CurrentIncident, CurrentIncidentMission, CurrentIncidentManager, \
         CurrentIncidentStatusSeverityHistory
     from models.incident_base_models import IncidentTypeMission
-    from routes.common import commit_trial, dispatch_notification
+    from routes.common import dispatch_notification
     from routes.current_incidents import assign_incident_manager
 
     iteration = 0

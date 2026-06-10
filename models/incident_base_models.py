@@ -17,7 +17,8 @@ class IncidentType(db.Model):
 
     missions = db.relationship(
         'IncidentTypeMission',
-        back_populates='incident_type'
+        back_populates='incident_type',
+        order_by='IncidentTypeMission.mission_order'
     )
 
     def __repr__(self):

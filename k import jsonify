@@ -1,0 +1,73 @@
+[1mdiff --git a/.idea/ims.iml b/.idea/ims.iml[m
+[1mindex 1f8d08c..e84cf09 100644[m
+[1m--- a/.idea/ims.iml[m
+[1m+++ b/.idea/ims.iml[m
+[36m@@ -5,6 +5,7 @@[m
+   </component>[m
+   <component name="NewModuleRootManager">[m
+     <content url="file://$MODULE_DIR$">[m
+[32m+[m[32m      <sourceFolder url="file://$MODULE_DIR$" isTestSource="false" />[m
+       <excludeFolder url="file://$MODULE_DIR$/.venv" />[m
+     </content>[m
+     <orderEntry type="jdk" jdkName="Python 3.14 (ims)" jdkType="Python SDK" />[m
+[1mdiff --git a/main.py b/main.py[m
+[1mindex 6bf43c8..7794e37 100644[m
+[1m--- a/main.py[m
+[1m+++ b/main.py[m
+[36m@@ -1,8 +1,6 @@[m
+ from flask import jsonify[m
+[31m-[m
+ from extensions import socketio[m
+ from routes import create_app[m
+[31m-from routes.common import dispatch_notification[m
+ from extensions import app[m
+ [m
+ create_app()[m
+[36m@@ -14,7 +12,7 @@[m [mdef listen_to_temp_inserts():[m
+     from models.current_incident_models import CurrentIncident, CurrentIncidentMission, CurrentIncidentManager, \[m
+         CurrentIncidentStatusSeverityHistory[m
+     from models.incident_base_models import IncidentTypeMission[m
+[31m-    from routes.common import commit_trial, dispatch_notification[m
+[32m+[m[32m    from routes.common import dispatch_notification[m
+     from routes.current_incidents import assign_incident_manager[m
+ [m
+     iteration = 0[m
+[1mdiff --git a/models/__pycache__/incident_base_models.cpython-314.pyc b/models/__pycache__/incident_base_models.cpython-314.pyc[m
+[1mindex f0a7a7f..8f6c8b4 100644[m
+Binary files a/models/__pycache__/incident_base_models.cpython-314.pyc and b/models/__pycache__/incident_base_models.cpython-314.pyc differ
+[1mdiff --git a/models/incident_base_models.py b/models/incident_base_models.py[m
+[1mindex d80e7ca..36cc7b5 100644[m
+[1m--- a/models/incident_base_models.py[m
+[1m+++ b/models/incident_base_models.py[m
+[36m@@ -17,7 +17,8 @@[m [mclass IncidentType(db.Model):[m
+ [m
+     missions = db.relationship([m
+         'IncidentTypeMission',[m
+[31m-        back_populates='incident_type'[m
+[32m+[m[32m        back_populates='incident_type',[m
+[32m+[m[32m        order_by='IncidentTypeMission.mission_order'[m
+     )[m
+ [m
+     def __repr__(self):[m
+[1mdiff --git a/routes/users.py b/routes/users.py[m
+[1mindex 98a8641..f6e274e 100644[m
+[1m--- a/routes/users.py[m
+[1m+++ b/routes/users.py[m
+[36m@@ -117,7 +117,7 @@[m [mdef login():[m
+ [m
+     if request.method == "POST":[m
+         data = request.get_json()[m
+[31m-        # print(data)[m
+[32m+[m[32m        print(data)[m
+         user = db.session.query(User).filter(User.username == data['username']).first()[m
+         if not user or not check_password_hash(user.userpassword, data['password']):[m
+             return jsonify({"error": "اسم مستخدم أو كلمة مرور خاطئة"}), 401[m
+[36m@@ -143,7 +143,7 @@[m [mdef login():[m
+ [m
+ [m
+ @users_bp.route("/change-password", methods=["GET", "POST"])[m
+[31m-@jwt_required()[m
+[32m+[m[32m@private_route_for_auth_level(0)[m
+ def change_password(current_user):[m
+     if request.method == "POST":[m
+         data = request.get_json()[m
