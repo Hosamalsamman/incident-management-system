@@ -36,8 +36,17 @@ def create_app():
     # Access token: 30 days
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
     jwt = JWTManager(app)
-    CORS(app)
-    CORS(app, supports_credentials=True, origins=["http://localhost:5000"])
+    # Remove both lines and replace with this single one
+    CORS(app, supports_credentials=True, origins=[
+        "http://localhost:5000",
+        "http://localhost:8080",
+        "http://crises.miniawater.com",
+        "https://crises.miniawater.com",
+        "https://risk-manamgment.web.app",  # Firebase
+        "http://172.16.0.31:8080",
+        "http://localhost:52998",
+
+    ])
 
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
