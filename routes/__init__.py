@@ -1,15 +1,16 @@
 import os
 from datetime import timedelta
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .current_incidents import current_incident_bp
 from .gis_date_route import gis_bp
 from .incident_base_routes import incident_base_bp
 from flask_cors import CORS
-from extensions import db
+from extensions import db, get_client_ip
 from routes import incident_socket
 from extensions import socketio
 from .users import users_bp
@@ -26,6 +27,13 @@ def register_routes(app):
 
 def create_app():
     from extensions import app
+
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+    @app.before_request
+    def log_request():
+        ip = get_client_ip()
+        print(f"[REQUEST] {ip} → {request.method} {request.path}")
 
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DB_URI")
     app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
