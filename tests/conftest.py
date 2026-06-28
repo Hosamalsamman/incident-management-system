@@ -16,6 +16,7 @@ Why do we need them?
 - To create a test Flask app
 - To provide test users and data
 """
+from unittest.mock import MagicMock
 
 import pytest
 import os
@@ -183,3 +184,16 @@ def auth_headers(app, test_user):
         
         # Return headers with the token
         return {'Authorization': f'Bearer {token}'}
+
+
+@pytest.fixture
+def mock_manager():
+    manager = MagicMock()
+
+    manager.user_id = 5
+    manager.tokens = [
+        MagicMock(token="abc123"),
+        MagicMock(token="xyz456")
+    ]
+
+    return manager

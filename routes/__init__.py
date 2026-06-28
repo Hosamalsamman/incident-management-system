@@ -52,7 +52,7 @@ def create_app():
         "https://crises.miniawater.com",
         "https://risk-manamgment.web.app",  # Firebase
         "http://172.16.0.31:8080",
-        "http://localhost:52998",
+        "http://localhost:56611",
 
     ])
 

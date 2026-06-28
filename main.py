@@ -6,14 +6,14 @@ from extensions import app
 create_app()
 
 
-@app.route('/debug-ip')
-def debug_ip():
-    return jsonify({
-        'remote_addr': request.remote_addr,
-        'x_forwarded_for': request.headers.get('X-Forwarded-For'),
-        'x_real_ip': request.headers.get('X-Real-IP'),
-        'all_headers': dict(request.headers)
-    })
+# @app.route('/debug-ip')
+# def debug_ip():
+#     return jsonify({
+#         'remote_addr': request.remote_addr,
+#         'x_forwarded_for': request.headers.get('X-Forwarded-For'),
+#         'x_real_ip': request.headers.get('X-Real-IP'),
+#         'all_headers': dict(request.headers)
+#     })
 
 def listen_to_temp_inserts():
     from datetime import datetime
