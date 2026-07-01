@@ -2,6 +2,7 @@ from flask import jsonify, request
 from extensions import socketio
 from routes import create_app
 from extensions import app
+from routes.incident_socket import add_user_to_incident
 
 create_app()
 
@@ -77,14 +78,14 @@ def listen_to_temp_inserts():
                                 current_incident_mission_status=1,
                             ))
 
-                        manager = assign_incident_manager(new_current_incident)
-                        if not manager:
+                        managers = assign_incident_manager(new_current_incident)
+                        if not managers:
                             raise Exception("No available managers")
 
-                        new_current_incident.manager_id = manager.user_id
+                        new_current_incident.manager_id = managers[0].user_id
                         db.session.add(CurrentIncidentManager(
                             current_incident_id=new_current_incident.current_incident_id,
-                            user_id=manager.user_id,
+                            user_id=managers[0].user_id,
                             assigned_by=1,
                             assigned_at=now
                         ))
@@ -98,13 +99,17 @@ def listen_to_temp_inserts():
                             current_incident_severity_changed_at=now
                         ))
 
+                        for i, manager in enumerate(managers):
+                            reason = "manager" if i == 0 else "observer"
+                            add_user_to_incident(manager.user_id, new_current_incident.current_incident_id, reason)
+
                         temp_incident.processed = True
                         db.session.commit()
                         print(f"✅ Incident {new_current_incident.current_incident_id} committed successfully")
 
                         # snapshot everything needed before context closes
                         incident_dict = new_current_incident.to_dict()
-                        device_tokens = [tok.token for tok in manager.tokens if tok.token and tok.token.strip()]
+                        device_tokens = [tok.token for tok in managers[0].tokens if tok.token and tok.token.strip()]
                         incident_id = str(new_current_incident.current_incident_id)
                         incident_desc = new_current_incident.current_incident_description
 
@@ -120,7 +125,7 @@ def listen_to_temp_inserts():
 
                     # --- Post-Commit Notifications (outside inner try, inside app_context) ---
                     try:
-                        socketio.start_background_task(lambda d=incident_dict: socketio.emit("incident_created", d))
+                        socketio.start_background_task(lambda d=incident_dict: socketio.emit("incident_created", d, room=incident_id))
 
                         if device_tokens:
                             socketio.start_background_task(

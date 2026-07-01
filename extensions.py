@@ -6,7 +6,7 @@ from firebase_admin import credentials
 
 # from celery import Celery
 
-socketio = SocketIO(cors_allowed_origins="*", async_mode="eventlet")
+socketio = SocketIO(cors_allowed_origins="*", async_mode="threading")
 
 class Base(DeclarativeBase):
     pass

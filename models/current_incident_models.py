@@ -620,3 +620,10 @@ class CurrentIncidentMissionEmployee(db.Model):
             "assigned_at": self.current_incident_mission_assigned_at.isoformat()
             if self.current_incident_mission_assigned_at else None,
         }
+
+
+class IncidentParticipant(db.Model):
+    __tablename__ = 'incident_participants'
+    incident_id = db.Column(db.Integer, db.ForeignKey('current_incidents.current_incident_id'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), primary_key=True)
+    added_reason = db.Column(db.String(50))  # 'manager', 'mission_class_match', 'assigned_employee', etc.

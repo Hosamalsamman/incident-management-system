@@ -6,11 +6,12 @@ from extensions import socketio, db
 from models import User
 from models.current_incident_models import CurrentIncident, IncidentSeverity, CurrentIncidentMission, \
     CurrentIncidentStatusSeverityHistory, CurrentIncidentMissionStatusHistory, CurrentIncidentManager, \
-    CurrentIncidentPhoto, CurrentIncidentMissionEmployee
+    CurrentIncidentPhoto, CurrentIncidentMissionEmployee, IncidentParticipant
 from models.incident_base_models import IncidentType, IncidentTypeMission
 from models.sectors import Branch, SectorManagement, SectorBranch, SectorClassification
 from datetime import datetime
 from routes.common import commit_trial, private_route_for_auth_level, dispatch_notification
+from routes.incident_socket import add_user_to_incident, connected_sids
 
 
 def assign_incident_manager(incident):
@@ -37,7 +38,7 @@ def assign_incident_manager(incident):
             ),
         )
         .order_by(User.authority_level_id.asc())
-        .first()
+        .all()
     )
 
 
@@ -104,18 +105,21 @@ def add_current_incident(current_user):
                 current_incident_mission_status=1,  # reported
             ))
 
-        manager = assign_incident_manager(new_current_incident)
+        managers = assign_incident_manager(new_current_incident)
 
-        if manager:
+        if managers:
             # print(manager.to_dict())
-            new_current_incident.manager_id = manager.user_id
+            new_current_incident.manager_id = managers[0].user_id
             assignment = CurrentIncidentManager(
                 current_incident_id=new_current_incident.current_incident_id,
-                user_id=manager.user_id,
+                user_id=managers[0].user_id,
                 assigned_by=1, # system
                 assigned_at=now
             )
             db.session.add(assignment)
+            for i, manager in enumerate(managers):
+                reason = "manager" if i == 0 else "observer"
+                add_user_to_incident(manager.user_id, new_current_incident.current_incident_id, reason)
         else:
             db.session.rollback()
             return jsonify({
@@ -133,7 +137,7 @@ def add_current_incident(current_user):
         db.session.add(new_hist)
 
         def after_commit():
-            socketio.emit("incident_created", new_current_incident.to_dict())
+            socketio.emit("incident_created", new_current_incident.to_dict(), room=f"incident:{new_current_incident.current_incident_id}")
             # device_tokens = [tok.token for tok in manager.tokens if tok.token]
             # if device_tokens:
             #     # print("there are tokens")
@@ -145,7 +149,7 @@ def add_current_incident(current_user):
 
         # send notification after commit, outside the callback
         if result[1] == 200:
-            device_tokens = [tok.token for tok in manager.tokens if tok.token]
+            device_tokens = [tok.token for tok in managers[0].tokens if tok.token]
             socketio.start_background_task(
                 lambda: dispatch_notification(
                     tokens=device_tokens,
@@ -373,9 +377,23 @@ def mission_user_assign(current_incident_id, current_user):
                 mission.current_incident_mission_status_updated_by = incident.manager_id
                 mission.current_incident_mission_status_updated_at = now
 
+        for i_m_e in curr_inc_mission_emp:
+            add_user_to_incident(i_m_e.current_incident_mission_emp, current_incident_id, "mission assign")
+
+            # serialize BEFORE background tasks — while session/context is alive
+        payload = incident.to_dict()
+        assigned_sids = [
+            connected_sids.get(i_m_e.current_incident_mission_emp)
+            for i_m_e in curr_inc_mission_emp
+        ]
 
         def emit_update():
-            socketio.emit("incident_updated", incident.to_dict())
+            # existing room members
+            socketio.emit("incident_updated", payload, room=f"incident:{current_incident_id}", namespace="/")
+            # newly assigned users who are connected but weren't in the room yet
+            for sid in assigned_sids:
+                if sid:
+                    socketio.emit("incident_created", payload, to=sid, namespace="/")
         result_ = commit_trial("تم تعيين الموظفين بنجاح", on_success=emit_update)
         if result_[1] == 200:
             notification_dict = {}
