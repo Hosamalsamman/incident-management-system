@@ -52,7 +52,10 @@ def add_user_to_incident(user_id, incident_id, reason):
 
     sid = connected_sids.get(user_id)
     if sid:
-        socketio.server.enter_room(sid, f"incident:{incident_id}")
+        try:
+            socketio.server.enter_room(sid, f"incident:{incident_id}")
+        except (ValueError, KeyError):
+            connected_sids.pop(user_id, None)  # stale sid, clean it up
 
 
 @socketio.on("connect")

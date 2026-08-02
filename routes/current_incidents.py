@@ -219,6 +219,7 @@ def edit_current_incident(current_incident_id, current_user):
 @current_incident_bp.route("/edit-current-mission/<current_incident_id>/<current_mission_id>/<mission_order>", methods=["GET","POST"])
 @private_route_for_auth_level(0)
 def edit_current_mission(current_incident_id, current_mission_id, mission_order, current_user):
+    print(current_incident_id, current_mission_id, mission_order)
     current_mission = (
         CurrentIncidentMission.query
         .filter_by(
@@ -241,6 +242,9 @@ def edit_current_mission(current_incident_id, current_mission_id, mission_order,
         # print(current_mission.incident.manager_id)
         # print(current_user.user_id != current_mission.incident.manager_id)
         current_mission_user_ids = [emp.current_incident_mission_emp for emp in current_mission.assigned_employees]
+
+        print(current_mission_user_ids)
+        print(current_user.user_id)
         if ((current_user.user_id not in current_mission_user_ids)
                 and (current_user.user_id != current_mission.incident.manager_id)):
             # print("manager 401")
